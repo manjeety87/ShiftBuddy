@@ -14,8 +14,7 @@ interface AppCardProps extends ViewProps {
 /**
  * Theme-aware card surface.
  * Automatically picks up card colour, border, radius, and shadow from the
- * active theme. When the theme has `glassOpacity > 0` and `glass` is true,
- * it renders a translucent card (real blur effects added in Step 10).
+ * active theme. Premium glass themes get a refined translucent appearance.
  */
 export function AppCard({
   glass,
@@ -35,17 +34,27 @@ export function AppCard({
         styles.card,
         {
           backgroundColor: useGlass ? colors.card : colors.card,
-          borderColor: accentBorder ?? colors.border,
+          borderColor: accentBorder
+            ? accentBorder + "66"
+            : useGlass
+              ? colors.border
+              : colors.border,
           borderRadius: 16 * r,
           padding,
-          // Subtle shadow for non-glass themes
-          shadowColor: colors.shadow,
-          shadowOffset: { width: 0, height: 4 },
-          shadowOpacity: useGlass ? 0.12 : 0.08,
-          shadowRadius: useGlass ? 16 : 8,
-          elevation: useGlass ? 6 : 3,
+          // Enhanced shadow system
+          shadowColor: useGlass ? colors.accent + "15" : colors.shadow,
+          shadowOffset: { width: 0, height: useGlass ? 6 : 4 },
+          shadowOpacity: useGlass ? 0.2 : 0.08,
+          shadowRadius: useGlass ? 20 : 8,
+          elevation: useGlass ? 8 : 3,
         },
-        accentBorder && { borderLeftWidth: 3, borderLeftColor: accentBorder },
+        accentBorder && {
+          borderLeftWidth: 3,
+          borderLeftColor: accentBorder,
+        },
+        useGlass && {
+          borderWidth: 0.5,
+        },
         style,
       ]}
       {...rest}

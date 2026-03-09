@@ -1,12 +1,12 @@
 import React, { useEffect } from "react";
-import { StyleSheet, type ViewStyle } from "react-native";
+import { type ViewStyle } from "react-native";
 import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withRepeat,
-  withTiming,
-  withSequence,
-  Easing,
+    Easing,
+    useAnimatedStyle,
+    useSharedValue,
+    withRepeat,
+    withSequence,
+    withTiming,
 } from "react-native-reanimated";
 
 interface PulseViewProps {
@@ -58,9 +58,5 @@ export function PulseView({
     transform: [{ scale: pulse.value }],
   }));
 
-  return (
-    <Animated.View style={[animStyle, style]}>
-      {children}
-    </Animated.View>
-  );
+  return <Animated.View style={[animStyle, style]}>{children}</Animated.View>;
 }

@@ -1,10 +1,12 @@
 import React, { useCallback, useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 
+import { AnimatedPress } from "@/components/ui/animated-press";
 import { AppBadge } from "@/components/ui/app-badge";
 import { AppCard } from "@/components/ui/app-card";
 import { AppScreen } from "@/components/ui/app-screen";
 import { AppText } from "@/components/ui/app-text";
+import { FadeInView } from "@/components/ui/fade-in-view";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useShiftStore } from "@/store";
@@ -238,25 +240,27 @@ export default function CalendarScreen() {
         </View>
 
         {/* ━━ Selected Day Summary ━━ */}
-        <View style={styles.daySummary}>
-          <View style={styles.flex1}>
-            <AppText variant="subheading">
-              {isSameDay(selectedDate, today)
-                ? "Today"
-                : selectedDate.toLocaleDateString(undefined, {
-                    weekday: "long",
-                    month: "short",
-                    day: "numeric",
-                  })}
-            </AppText>
+        <FadeInView delay={0} duration={300}>
+          <View style={styles.daySummary}>
+            <View style={styles.flex1}>
+              <AppText variant="subheading">
+                {isSameDay(selectedDate, today)
+                  ? "Today"
+                  : selectedDate.toLocaleDateString(undefined, {
+                      weekday: "long",
+                      month: "short",
+                      day: "numeric",
+                    })}
+              </AppText>
+            </View>
+            {dayShifts.length > 0 && (
+              <AppBadge
+                label={`${dayShifts.length} shift${dayShifts.length !== 1 ? "s" : ""} · ${dayTotalHrs.toFixed(1)}h`}
+                variant="accent"
+              />
+            )}
           </View>
-          {dayShifts.length > 0 && (
-            <AppBadge
-              label={`${dayShifts.length} shift${dayShifts.length !== 1 ? "s" : ""} · ${dayTotalHrs.toFixed(1)}h`}
-              variant="accent"
-            />
-          )}
-        </View>
+        </FadeInView>
 
         {/* ━━ Shift Cards ━━ */}
         {dayShifts.length === 0 ? (
@@ -282,118 +286,132 @@ export default function CalendarScreen() {
             const hasConflict = dayConflictShiftIds.has(shift.id);
 
             return (
-              <AppCard
-                key={shift.id}
-                accentBorder={wp?.color}
-                style={[styles.shiftCard, isPast && { opacity: 0.5 }]}
-              >
-                <View style={styles.shiftRow}>
-                  {/* Time column */}
-                  <View style={styles.timeCol}>
-                    <AppText variant="bodyBold">
-                      {fmtTime(shift.startDateTime)}
-                    </AppText>
-                    <AppText variant="caption" color={colors.textSecondary}>
-                      {fmtTime(shift.endDateTime)}
-                    </AppText>
-                  </View>
-
-                  {/* Timeline dot + line */}
-                  <View style={styles.tlCol}>
-                    <View
-                      style={[
-                        styles.tlDot,
-                        {
-                          backgroundColor: isActive
-                            ? colors.success
-                            : hasConflict
-                              ? colors.error
-                              : (wp?.color ?? colors.accent),
-                          borderColor: isActive
-                            ? colors.success + "44"
-                            : hasConflict
-                              ? colors.error + "44"
-                              : "transparent",
-                        },
-                      ]}
-                    />
-                    {idx < dayShifts.length - 1 && (
-                      <View
-                        style={[
-                          styles.tlLine,
-                          { backgroundColor: colors.border },
-                        ]}
-                      />
-                    )}
-                  </View>
-
-                  {/* Info */}
-                  <View style={styles.flex1}>
-                    <View style={styles.shiftInfoTop}>
-                      <AppText variant="bodyBold" style={styles.flex1}>
-                        {shift.title}
-                      </AppText>
-                      {isActive && <AppBadge label="NOW" variant="success" />}
-                      {hasConflict && (
-                        <AppBadge label="Conflict" variant="error" />
-                      )}
-                      {shift.status === "pending" && (
-                        <AppBadge label="Pending" variant="warning" />
-                      )}
-                    </View>
-
-                    {/* Workplace + duration */}
-                    <View style={styles.wpRow}>
-                      <View
-                        style={[
-                          styles.dot,
-                          { backgroundColor: wp?.color ?? colors.accent },
-                        ]}
-                      />
-                      <AppText variant="caption" color={colors.textSecondary}>
-                        {wp?.name ?? "Unknown"}
-                      </AppText>
-                      <AppText variant="caption" color={colors.textSecondary}>
-                        · {shiftDur(shift)}h
-                      </AppText>
-                    </View>
-
-                    {/* Source tag */}
-                    {shift.source !== "manual" && (
-                      <View style={styles.sourceRow}>
-                        <IconSymbol
-                          name={
-                            shift.source === "image_ocr"
-                              ? "camera.fill"
-                              : "arrow.triangle.2.circlepath"
-                          }
-                          size={12}
-                          color={colors.textSecondary}
-                        />
-                        <AppText variant="label" color={colors.textSecondary}>
-                          {shift.source === "image_ocr"
-                            ? "From photo"
-                            : shift.source === "google_calendar"
-                              ? "Google Calendar"
-                              : "Apple Calendar"}
+              <FadeInView key={shift.id} delay={60 + idx * 50} duration={350}>
+                <AnimatedPress scale={0.98}>
+                  <AppCard
+                    accentBorder={wp?.color}
+                    style={[styles.shiftCard, isPast && { opacity: 0.5 }]}
+                  >
+                    <View style={styles.shiftRow}>
+                      {/* Time column */}
+                      <View style={styles.timeCol}>
+                        <AppText variant="bodyBold">
+                          {fmtTime(shift.startDateTime)}
+                        </AppText>
+                        <AppText variant="caption" color={colors.textSecondary}>
+                          {fmtTime(shift.endDateTime)}
                         </AppText>
                       </View>
-                    )}
 
-                    {/* Notes */}
-                    {shift.notes && (
-                      <AppText
-                        variant="caption"
-                        color={colors.textSecondary}
-                        style={styles.notes}
-                        numberOfLines={1}
-                      >
-                        {shift.notes}
-                      </AppText>
-                    )}
-                  </View>
-                </View>
-              </AppCard>
+                      {/* Timeline dot + line */}
+                      <View style={styles.tlCol}>
+                        <View
+                          style={[
+                            styles.tlDot,
+                            {
+                              backgroundColor: isActive
+                                ? colors.success
+                                : hasConflict
+                                  ? colors.error
+                                  : (wp?.color ?? colors.accent),
+                              borderColor: isActive
+                                ? colors.success + "44"
+                                : hasConflict
+                                  ? colors.error + "44"
+                                  : "transparent",
+                            },
+                          ]}
+                        />
+                        {idx < dayShifts.length - 1 && (
+                          <View
+                            style={[
+                              styles.tlLine,
+                              { backgroundColor: colors.border },
+                            ]}
+                          />
+                        )}
+                      </View>
+
+                      {/* Info */}
+                      <View style={styles.flex1}>
+                        <View style={styles.shiftInfoTop}>
+                          <AppText variant="bodyBold" style={styles.flex1}>
+                            {shift.title}
+                          </AppText>
+                          {isActive && (
+                            <AppBadge label="NOW" variant="success" />
+                          )}
+                          {hasConflict && (
+                            <AppBadge label="Conflict" variant="error" />
+                          )}
+                          {shift.status === "pending" && (
+                            <AppBadge label="Pending" variant="warning" />
+                          )}
+                        </View>
+
+                        {/* Workplace + duration */}
+                        <View style={styles.wpRow}>
+                          <View
+                            style={[
+                              styles.dot,
+                              { backgroundColor: wp?.color ?? colors.accent },
+                            ]}
+                          />
+                          <AppText
+                            variant="caption"
+                            color={colors.textSecondary}
+                          >
+                            {wp?.name ?? "Unknown"}
+                          </AppText>
+                          <AppText
+                            variant="caption"
+                            color={colors.textSecondary}
+                          >
+                            · {shiftDur(shift)}h
+                          </AppText>
+                        </View>
+
+                        {/* Source tag */}
+                        {shift.source !== "manual" && (
+                          <View style={styles.sourceRow}>
+                            <IconSymbol
+                              name={
+                                shift.source === "image_ocr"
+                                  ? "camera.fill"
+                                  : "arrow.triangle.2.circlepath"
+                              }
+                              size={12}
+                              color={colors.textSecondary}
+                            />
+                            <AppText
+                              variant="label"
+                              color={colors.textSecondary}
+                            >
+                              {shift.source === "image_ocr"
+                                ? "From photo"
+                                : shift.source === "google_calendar"
+                                  ? "Google Calendar"
+                                  : "Apple Calendar"}
+                            </AppText>
+                          </View>
+                        )}
+
+                        {/* Notes */}
+                        {shift.notes && (
+                          <AppText
+                            variant="caption"
+                            color={colors.textSecondary}
+                            style={styles.notes}
+                            numberOfLines={1}
+                          >
+                            {shift.notes}
+                          </AppText>
+                        )}
+                      </View>
+                    </View>
+                  </AppCard>
+                </AnimatedPress>
+              </FadeInView>
             );
           })
         )}

@@ -1,10 +1,12 @@
 import React, { useMemo } from "react";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 
+import { AnimatedPress } from "@/components/ui/animated-press";
 import { AppBadge } from "@/components/ui/app-badge";
 import { AppCard } from "@/components/ui/app-card";
 import { AppScreen } from "@/components/ui/app-screen";
 import { AppText } from "@/components/ui/app-text";
+import { FadeInView } from "@/components/ui/fade-in-view";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useShiftStore } from "@/store";
@@ -115,183 +117,192 @@ export default function WorkplacesScreen() {
         </View>
 
         {/* ━━ Overview Stats ━━ */}
-        <View style={styles.overviewRow}>
-          <AppCard style={styles.overviewCard} padding={14}>
-            <AppText variant="title" color={colors.accent} center>
-              {workplaces.length}
-            </AppText>
-            <AppText variant="label" center>
-              Jobs
-            </AppText>
-          </AppCard>
-          <AppCard style={styles.overviewCard} padding={14}>
-            <AppText variant="title" color={colors.success} center>
-              {totalHours.toFixed(0)}
-            </AppText>
-            <AppText variant="label" center>
-              Total Hrs
-            </AppText>
-          </AppCard>
-          <AppCard style={styles.overviewCard} padding={14}>
-            <AppText variant="title" color={colors.warning} center>
-              ${totalEarnings.toFixed(0)}
-            </AppText>
-            <AppText variant="label" center>
-              Est. Pay
-            </AppText>
-          </AppCard>
-        </View>
+        <FadeInView delay={60}>
+          <View style={styles.overviewRow}>
+            <AppCard style={styles.overviewCard} padding={14}>
+              <AppText variant="title" color={colors.accent} center>
+                {workplaces.length}
+              </AppText>
+              <AppText variant="label" center>
+                Jobs
+              </AppText>
+            </AppCard>
+            <AppCard style={styles.overviewCard} padding={14}>
+              <AppText variant="title" color={colors.success} center>
+                {totalHours.toFixed(0)}
+              </AppText>
+              <AppText variant="label" center>
+                Total Hrs
+              </AppText>
+            </AppCard>
+            <AppCard style={styles.overviewCard} padding={14}>
+              <AppText variant="title" color={colors.warning} center>
+                ${totalEarnings.toFixed(0)}
+              </AppText>
+              <AppText variant="label" center>
+                Est. Pay
+              </AppText>
+            </AppCard>
+          </View>
+        </FadeInView>
 
         {/* ━━ Workplace Cards ━━ */}
-        {workplaces.map((wp) => {
+        {workplaces.map((wp, idx) => {
           const stats = wpStats.get(wp.id)!;
           return (
-            <AppCard key={wp.id} accentBorder={wp.color} style={styles.card}>
-              {/* Card Header */}
-              <View style={styles.cardHeader}>
-                <View
-                  style={[
-                    styles.colorBadge,
-                    {
-                      backgroundColor: wp.color + "22",
-                      borderColor: wp.color + "44",
-                    },
-                  ]}
-                >
-                  <IconSymbol
-                    name="briefcase.fill"
-                    size={18}
-                    color={wp.color}
-                  />
-                </View>
-                <View style={styles.flex1}>
-                  <AppText variant="heading">{wp.name}</AppText>
-                  {wp.hourlyRate !== undefined && (
-                    <AppText variant="caption" color={colors.textSecondary}>
-                      ${wp.hourlyRate.toFixed(2)}/hr
-                    </AppText>
-                  )}
-                </View>
-                <Pressable
-                  hitSlop={10}
-                  style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1 }]}
-                >
-                  <IconSymbol
-                    name="pencil"
-                    size={18}
-                    color={colors.textSecondary}
-                  />
-                </Pressable>
-              </View>
-
-              {/* Mini Stats Row */}
-              <View style={styles.miniStats}>
-                <View
-                  style={[
-                    styles.miniStatPill,
-                    { backgroundColor: colors.accent + "14" },
-                  ]}
-                >
-                  <AppText variant="captionBold" color={colors.accent}>
-                    {stats.total} shifts
-                  </AppText>
-                </View>
-                <View
-                  style={[
-                    styles.miniStatPill,
-                    { backgroundColor: colors.success + "14" },
-                  ]}
-                >
-                  <AppText variant="captionBold" color={colors.success}>
-                    {stats.hours.toFixed(1)}h
-                  </AppText>
-                </View>
-                <View
-                  style={[
-                    styles.miniStatPill,
-                    { backgroundColor: colors.warning + "14" },
-                  ]}
-                >
-                  <AppText variant="captionBold" color={colors.warning}>
-                    ${stats.earnings.toFixed(0)}
-                  </AppText>
-                </View>
-                {stats.upcoming > 0 && (
-                  <AppBadge
-                    label={`${stats.upcoming} upcoming`}
-                    variant="accent"
-                  />
-                )}
-              </View>
-
-              {/* Details */}
-              <View style={styles.detailsSection}>
-                {wp.address && (
-                  <View style={styles.detailRow}>
-                    <IconSymbol
-                      name="mappin"
-                      size={14}
-                      color={colors.textSecondary}
-                    />
-                    <AppText variant="caption" color={colors.textSecondary}>
-                      {wp.address}
-                    </AppText>
-                  </View>
-                )}
-                {wp.notes && (
-                  <View style={styles.detailRow}>
-                    <IconSymbol
-                      name="note.text"
-                      size={14}
-                      color={colors.textSecondary}
-                    />
-                    <AppText
-                      variant="caption"
-                      color={colors.textSecondary}
-                      style={styles.flex1}
-                      numberOfLines={2}
+            <FadeInView key={wp.id} delay={140 + idx * 80}>
+              <AnimatedPress scale={0.98}>
+                <AppCard accentBorder={wp.color} style={styles.card}>
+                  {/* Card Header */}
+                  <View style={styles.cardHeader}>
+                    <View
+                      style={[
+                        styles.colorBadge,
+                        {
+                          backgroundColor: wp.color + "22",
+                          borderColor: wp.color + "44",
+                        },
+                      ]}
                     >
-                      {wp.notes}
-                    </AppText>
-                  </View>
-                )}
-              </View>
-
-              {/* Next Shift Preview */}
-              {stats.nextShiftTitle && (
-                <View
-                  style={[
-                    styles.nextShift,
-                    {
-                      backgroundColor: colors.surface,
-                      borderColor: colors.border,
-                    },
-                  ]}
-                >
-                  <View style={styles.flex1}>
-                    <AppText variant="overline">NEXT SHIFT</AppText>
-                    <AppText variant="bodyBold" style={styles.nextTitle}>
-                      {stats.nextShiftTitle}
-                    </AppText>
-                    <View style={styles.nextMeta}>
                       <IconSymbol
-                        name="clock.fill"
-                        size={12}
+                        name="briefcase.fill"
+                        size={18}
+                        color={wp.color}
+                      />
+                    </View>
+                    <View style={styles.flex1}>
+                      <AppText variant="heading">{wp.name}</AppText>
+                      {wp.hourlyRate !== undefined && (
+                        <AppText variant="caption" color={colors.textSecondary}>
+                          ${wp.hourlyRate.toFixed(2)}/hr
+                        </AppText>
+                      )}
+                    </View>
+                    <Pressable
+                      hitSlop={10}
+                      style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1 }]}
+                    >
+                      <IconSymbol
+                        name="pencil"
+                        size={18}
                         color={colors.textSecondary}
                       />
-                      <AppText variant="caption" color={colors.textSecondary}>
-                        {stats.nextShiftDate} · {stats.nextShiftTime}
+                    </Pressable>
+                  </View>
+
+                  {/* Mini Stats Row */}
+                  <View style={styles.miniStats}>
+                    <View
+                      style={[
+                        styles.miniStatPill,
+                        { backgroundColor: colors.accent + "14" },
+                      ]}
+                    >
+                      <AppText variant="captionBold" color={colors.accent}>
+                        {stats.total} shifts
                       </AppText>
                     </View>
+                    <View
+                      style={[
+                        styles.miniStatPill,
+                        { backgroundColor: colors.success + "14" },
+                      ]}
+                    >
+                      <AppText variant="captionBold" color={colors.success}>
+                        {stats.hours.toFixed(1)}h
+                      </AppText>
+                    </View>
+                    <View
+                      style={[
+                        styles.miniStatPill,
+                        { backgroundColor: colors.warning + "14" },
+                      ]}
+                    >
+                      <AppText variant="captionBold" color={colors.warning}>
+                        ${stats.earnings.toFixed(0)}
+                      </AppText>
+                    </View>
+                    {stats.upcoming > 0 && (
+                      <AppBadge
+                        label={`${stats.upcoming} upcoming`}
+                        variant="accent"
+                      />
+                    )}
                   </View>
-                  <IconSymbol
-                    name="chevron.right"
-                    size={16}
-                    color={colors.textSecondary}
-                  />
-                </View>
-              )}
-            </AppCard>
+
+                  {/* Details */}
+                  <View style={styles.detailsSection}>
+                    {wp.address && (
+                      <View style={styles.detailRow}>
+                        <IconSymbol
+                          name="mappin"
+                          size={14}
+                          color={colors.textSecondary}
+                        />
+                        <AppText variant="caption" color={colors.textSecondary}>
+                          {wp.address}
+                        </AppText>
+                      </View>
+                    )}
+                    {wp.notes && (
+                      <View style={styles.detailRow}>
+                        <IconSymbol
+                          name="note.text"
+                          size={14}
+                          color={colors.textSecondary}
+                        />
+                        <AppText
+                          variant="caption"
+                          color={colors.textSecondary}
+                          style={styles.flex1}
+                          numberOfLines={2}
+                        >
+                          {wp.notes}
+                        </AppText>
+                      </View>
+                    )}
+                  </View>
+
+                  {/* Next Shift Preview */}
+                  {stats.nextShiftTitle && (
+                    <View
+                      style={[
+                        styles.nextShift,
+                        {
+                          backgroundColor: colors.surface,
+                          borderColor: colors.border,
+                        },
+                      ]}
+                    >
+                      <View style={styles.flex1}>
+                        <AppText variant="overline">NEXT SHIFT</AppText>
+                        <AppText variant="bodyBold" style={styles.nextTitle}>
+                          {stats.nextShiftTitle}
+                        </AppText>
+                        <View style={styles.nextMeta}>
+                          <IconSymbol
+                            name="clock.fill"
+                            size={12}
+                            color={colors.textSecondary}
+                          />
+                          <AppText
+                            variant="caption"
+                            color={colors.textSecondary}
+                          >
+                            {stats.nextShiftDate} · {stats.nextShiftTime}
+                          </AppText>
+                        </View>
+                      </View>
+                      <IconSymbol
+                        name="chevron.right"
+                        size={16}
+                        color={colors.textSecondary}
+                      />
+                    </View>
+                  )}
+                </AppCard>
+              </AnimatedPress>
+            </FadeInView>
           );
         })}
 

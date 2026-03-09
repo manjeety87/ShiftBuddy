@@ -1,12 +1,12 @@
 import React, { useEffect } from "react";
 import { type ViewStyle } from "react-native";
 import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withDelay,
-  withTiming,
-  Easing,
-  interpolate,
+    Easing,
+    interpolate,
+    useAnimatedStyle,
+    useSharedValue,
+    withDelay,
+    withTiming,
 } from "react-native-reanimated";
 
 interface FadeInViewProps {
@@ -52,9 +52,5 @@ export function FadeInView({
     ],
   }));
 
-  return (
-    <Animated.View style={[animStyle, style]}>
-      {children}
-    </Animated.View>
-  );
+  return <Animated.View style={[animStyle, style]}>{children}</Animated.View>;
 }

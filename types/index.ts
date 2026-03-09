@@ -93,6 +93,10 @@ export interface ThemeTokens {
   blurTint: "light" | "dark" | "default";
   glassOpacity: number; // 0..1  (0 = fully transparent glass card)
   radiusScale: number; // multiplier on default radii
+  gradientStart: string; // primary gradient colour
+  gradientEnd: string; // secondary gradient colour
+  highlight: string; // subtle highlight / selection tint
+  muted: string; // muted / disabled element colour
 }
 
 export interface AppTheme {

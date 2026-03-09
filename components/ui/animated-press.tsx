@@ -1,9 +1,9 @@
 import React, { useCallback } from "react";
 import { type ViewStyle } from "react-native";
 import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
+    useAnimatedStyle,
+    useSharedValue,
+    withSpring,
 } from "react-native-reanimated";
 
 const SPRING_CONFIG = { damping: 15, stiffness: 300, mass: 0.6 };

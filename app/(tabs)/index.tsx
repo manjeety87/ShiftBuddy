@@ -2,11 +2,14 @@ import { router } from "expo-router";
 import React from "react";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 
+import { AnimatedPress } from "@/components/ui/animated-press";
 import { AppBadge } from "@/components/ui/app-badge";
 import { AppCard } from "@/components/ui/app-card";
 import { AppScreen } from "@/components/ui/app-screen";
 import { AppText } from "@/components/ui/app-text";
+import { FadeInView } from "@/components/ui/fade-in-view";
 import { IconSymbol } from "@/components/ui/icon-symbol";
+import { PulseView } from "@/components/ui/pulse-view";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useShiftStore } from "@/store";
 import type { Shift } from "@/types";
@@ -92,224 +95,244 @@ export default function HomeScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* ━━ Header ━━ */}
-        <View style={styles.header}>
-          <View style={styles.flex1}>
-            <AppText variant="body" color={colors.textSecondary}>
-              {now.toLocaleDateString(undefined, {
-                weekday: "long",
-                month: "long",
-                day: "numeric",
-              })}
-            </AppText>
-            <AppText variant="largeTitle" style={styles.appName}>
-              ShiftBuddy
-            </AppText>
-          </View>
-          {/* Avatar placeholder */}
-          <View
-            style={[
-              styles.avatar,
-              {
-                backgroundColor: colors.accent + "22",
-                borderColor: colors.accent,
-              },
-            ]}
-          >
-            <AppText variant="subheading" color={colors.accent}>
-              {user.name.charAt(0)}
-            </AppText>
-          </View>
-        </View>
-
-        {/* ━━ Next Shift Hero Card ━━ */}
-        <AppCard style={styles.heroCard} accentBorder={nextWp?.color}>
-          <View style={styles.heroTop}>
-            <AppText variant="overline">NEXT SHIFT</AppText>
-            {nextShift && (
-              <AppBadge
-                label={nextShift.status === "pending" ? "Pending" : "Confirmed"}
-                variant={nextShift.status === "pending" ? "warning" : "success"}
-              />
-            )}
-          </View>
-          {nextShift ? (
-            <>
-              <AppText variant="heading" style={styles.heroTitle}>
-                {nextShift.title}
+        <FadeInView delay={0}>
+          <View style={styles.header}>
+            <View style={styles.flex1}>
+              <AppText variant="body" color={colors.textSecondary}>
+                {now.toLocaleDateString(undefined, {
+                  weekday: "long",
+                  month: "long",
+                  day: "numeric",
+                })}
               </AppText>
-              <View style={styles.heroMeta}>
-                <View
-                  style={[
-                    styles.dot,
-                    { backgroundColor: nextWp?.color ?? colors.accent },
-                  ]}
-                />
-                <AppText variant="body" color={colors.textSecondary}>
-                  {nextWp?.name ?? "Unknown"}
-                </AppText>
-              </View>
-              <View style={styles.heroTimeRow}>
-                <IconSymbol
-                  name="clock.fill"
-                  size={16}
-                  color={colors.textSecondary}
-                />
-                <AppText variant="bodyBold" color={colors.textPrimary}>
-                  {fmtTime(nextShift.startDateTime)} –{" "}
-                  {fmtTime(nextShift.endDateTime)}
-                </AppText>
-                <AppText variant="caption" color={colors.textSecondary}>
-                  ({shiftDurationHrs(nextShift)}h)
-                </AppText>
-              </View>
-              <AppText
-                variant="caption"
-                color={colors.textSecondary}
-                style={styles.heroDate}
-              >
-                {fmtDate(nextShift.startDateTime)}
-              </AppText>
-            </>
-          ) : (
-            <View style={styles.emptyState}>
-              <AppText variant="heading" center>
-                All clear! 🎉
-              </AppText>
-              <AppText variant="body" color={colors.textSecondary} center>
-                No upcoming shifts scheduled
+              <AppText variant="largeTitle" style={styles.appName}>
+                ShiftBuddy
               </AppText>
             </View>
-          )}
-        </AppCard>
+            {/* Avatar placeholder */}
+            <View
+              style={[
+                styles.avatar,
+                {
+                  backgroundColor: colors.accent + "22",
+                  borderColor: colors.accent,
+                },
+              ]}
+            >
+              <AppText variant="subheading" color={colors.accent}>
+                {user.name.charAt(0)}
+              </AppText>
+            </View>
+          </View>
+        </FadeInView>
+
+        {/* ━━ Next Shift Hero Card ━━ */}
+        <FadeInView delay={80}>
+          <AnimatedPress scale={0.98}>
+            <AppCard style={styles.heroCard} accentBorder={nextWp?.color}>
+              <View style={styles.heroTop}>
+                <AppText variant="overline">NEXT SHIFT</AppText>
+                {nextShift && (
+                  <AppBadge
+                    label={
+                      nextShift.status === "pending" ? "Pending" : "Confirmed"
+                    }
+                    variant={
+                      nextShift.status === "pending" ? "warning" : "success"
+                    }
+                  />
+                )}
+              </View>
+              {nextShift ? (
+                <>
+                  <AppText variant="heading" style={styles.heroTitle}>
+                    {nextShift.title}
+                  </AppText>
+                  <View style={styles.heroMeta}>
+                    <View
+                      style={[
+                        styles.dot,
+                        { backgroundColor: nextWp?.color ?? colors.accent },
+                      ]}
+                    />
+                    <AppText variant="body" color={colors.textSecondary}>
+                      {nextWp?.name ?? "Unknown"}
+                    </AppText>
+                  </View>
+                  <View style={styles.heroTimeRow}>
+                    <IconSymbol
+                      name="clock.fill"
+                      size={16}
+                      color={colors.textSecondary}
+                    />
+                    <AppText variant="bodyBold" color={colors.textPrimary}>
+                      {fmtTime(nextShift.startDateTime)} –{" "}
+                      {fmtTime(nextShift.endDateTime)}
+                    </AppText>
+                    <AppText variant="caption" color={colors.textSecondary}>
+                      ({shiftDurationHrs(nextShift)}h)
+                    </AppText>
+                  </View>
+                  <AppText
+                    variant="caption"
+                    color={colors.textSecondary}
+                    style={styles.heroDate}
+                  >
+                    {fmtDate(nextShift.startDateTime)}
+                  </AppText>
+                </>
+              ) : (
+                <View style={styles.emptyState}>
+                  <AppText variant="heading" center>
+                    All clear! 🎉
+                  </AppText>
+                  <AppText variant="body" color={colors.textSecondary} center>
+                    No upcoming shifts scheduled
+                  </AppText>
+                </View>
+              )}
+            </AppCard>
+          </AnimatedPress>
+        </FadeInView>
 
         {/* ━━ Conflict Alert ━━ */}
         {unresolvedConflicts.length > 0 && (
-          <Pressable onPress={() => router.push("/conflicts")}>
-            <AppCard
-              style={[
-                styles.conflictCard,
-                { borderColor: colors.error + "44" },
-              ]}
-            >
-              <View style={styles.conflictInner}>
-                <IconSymbol
-                  name="exclamationmark.triangle.fill"
-                  size={22}
-                  color={colors.error}
-                />
-                <View style={styles.flex1}>
-                  <AppText variant="bodyBold" color={colors.error}>
-                    {unresolvedConflicts.length} Shift Conflict
-                    {unresolvedConflicts.length > 1 ? "s" : ""}
-                  </AppText>
-                  <AppText variant="caption" color={colors.textSecondary}>
-                    Overlapping shifts detected — tap to review
-                  </AppText>
-                </View>
-                <IconSymbol
-                  name="chevron.right"
-                  size={18}
-                  color={colors.textSecondary}
-                />
-              </View>
-            </AppCard>
-          </Pressable>
+          <FadeInView delay={160}>
+            <PulseView scale={1.01} duration={2000}>
+              <Pressable onPress={() => router.push("/conflicts")}>
+                <AppCard
+                  style={[
+                    styles.conflictCard,
+                    { borderColor: colors.error + "44" },
+                  ]}
+                >
+                  <View style={styles.conflictInner}>
+                    <IconSymbol
+                      name="exclamationmark.triangle.fill"
+                      size={22}
+                      color={colors.error}
+                    />
+                    <View style={styles.flex1}>
+                      <AppText variant="bodyBold" color={colors.error}>
+                        {unresolvedConflicts.length} Shift Conflict
+                        {unresolvedConflicts.length > 1 ? "s" : ""}
+                      </AppText>
+                      <AppText variant="caption" color={colors.textSecondary}>
+                        Overlapping shifts detected — tap to review
+                      </AppText>
+                    </View>
+                    <IconSymbol
+                      name="chevron.right"
+                      size={18}
+                      color={colors.textSecondary}
+                    />
+                  </View>
+                </AppCard>
+              </Pressable>
+            </PulseView>
+          </FadeInView>
         )}
 
         {/* ━━ Today's Timeline ━━ */}
-        <View style={styles.sectionHeader}>
-          <AppText variant="subheading">Today</AppText>
-          <AppBadge
-            label={`${todayShifts.length} shift${todayShifts.length !== 1 ? "s" : ""} · ${todayTotalHrs.toFixed(1)}h`}
-            variant="accent"
-          />
-        </View>
+        <FadeInView delay={200}>
+          <View style={styles.sectionHeader}>
+            <AppText variant="subheading">Today</AppText>
+            <AppBadge
+              label={`${todayShifts.length} shift${todayShifts.length !== 1 ? "s" : ""} · ${todayTotalHrs.toFixed(1)}h`}
+              variant="accent"
+            />
+          </View>
 
-        {todayShifts.length === 0 ? (
-          <AppCard style={styles.mb16}>
-            <AppText variant="body" color={colors.textSecondary} center>
-              No shifts today — enjoy your day off! ☀️
-            </AppText>
-          </AppCard>
-        ) : (
-          todayShifts.map((shift, idx) => {
-            const wp = workplaces.find((w) => w.id === shift.workplaceId);
-            const isPast = new Date(shift.endDateTime) < now;
-            const isNow =
-              new Date(shift.startDateTime) <= now &&
-              new Date(shift.endDateTime) >= now;
-            return (
-              <AppCard
-                key={shift.id}
-                accentBorder={wp?.color}
-                style={[styles.timelineCard, isPast && { opacity: 0.55 }]}
-              >
-                <View style={styles.timelineRow}>
-                  {/* Time column */}
-                  <View style={styles.timeCol}>
-                    <AppText variant="bodyBold">
-                      {fmtTime(shift.startDateTime)}
-                    </AppText>
-                    <AppText variant="caption" color={colors.textSecondary}>
-                      {fmtTime(shift.endDateTime)}
-                    </AppText>
-                  </View>
-                  {/* Divider */}
-                  <View style={styles.dividerCol}>
-                    <View
-                      style={[
-                        styles.timelineDot,
-                        {
-                          backgroundColor: isNow
-                            ? colors.success
-                            : (wp?.color ?? colors.accent),
-                          borderColor: isNow
-                            ? colors.success + "44"
-                            : "transparent",
-                        },
-                      ]}
-                    />
-                    {idx < todayShifts.length - 1 && (
-                      <View
-                        style={[
-                          styles.timelineLine,
-                          { backgroundColor: colors.border },
-                        ]}
-                      />
-                    )}
-                  </View>
-                  {/* Shift info */}
-                  <View style={styles.flex1}>
-                    <View style={styles.shiftInfoTop}>
-                      <AppText variant="bodyBold" style={styles.flex1}>
-                        {shift.title}
-                      </AppText>
-                      {isNow && <AppBadge label="NOW" variant="success" />}
-                      {shift.status === "pending" && (
-                        <AppBadge label="Pending" variant="warning" />
-                      )}
+          {todayShifts.length === 0 ? (
+            <AppCard style={styles.mb16}>
+              <AppText variant="body" color={colors.textSecondary} center>
+                No shifts today — enjoy your day off! ☀️
+              </AppText>
+            </AppCard>
+          ) : (
+            todayShifts.map((shift, idx) => {
+              const wp = workplaces.find((w) => w.id === shift.workplaceId);
+              const isPast = new Date(shift.endDateTime) < now;
+              const isNow =
+                new Date(shift.startDateTime) <= now &&
+                new Date(shift.endDateTime) >= now;
+              return (
+                <FadeInView key={shift.id} delay={240 + idx * 60}>
+                  <AppCard
+                    accentBorder={wp?.color}
+                    style={[styles.timelineCard, isPast && { opacity: 0.55 }]}
+                  >
+                    <View style={styles.timelineRow}>
+                      {/* Time column */}
+                      <View style={styles.timeCol}>
+                        <AppText variant="bodyBold">
+                          {fmtTime(shift.startDateTime)}
+                        </AppText>
+                        <AppText variant="caption" color={colors.textSecondary}>
+                          {fmtTime(shift.endDateTime)}
+                        </AppText>
+                      </View>
+                      {/* Divider */}
+                      <View style={styles.dividerCol}>
+                        <View
+                          style={[
+                            styles.timelineDot,
+                            {
+                              backgroundColor: isNow
+                                ? colors.success
+                                : (wp?.color ?? colors.accent),
+                              borderColor: isNow
+                                ? colors.success + "44"
+                                : "transparent",
+                            },
+                          ]}
+                        />
+                        {idx < todayShifts.length - 1 && (
+                          <View
+                            style={[
+                              styles.timelineLine,
+                              { backgroundColor: colors.border },
+                            ]}
+                          />
+                        )}
+                      </View>
+                      {/* Shift info */}
+                      <View style={styles.flex1}>
+                        <View style={styles.shiftInfoTop}>
+                          <AppText variant="bodyBold" style={styles.flex1}>
+                            {shift.title}
+                          </AppText>
+                          {isNow && <AppBadge label="NOW" variant="success" />}
+                          {shift.status === "pending" && (
+                            <AppBadge label="Pending" variant="warning" />
+                          )}
+                        </View>
+                        <View style={styles.shiftInfoBottom}>
+                          <View
+                            style={[
+                              styles.dot,
+                              { backgroundColor: wp?.color ?? colors.accent },
+                            ]}
+                          />
+                          <AppText
+                            variant="caption"
+                            color={colors.textSecondary}
+                          >
+                            {wp?.name ?? "Unknown"} · {shiftDurationHrs(shift)}h
+                          </AppText>
+                        </View>
+                      </View>
                     </View>
-                    <View style={styles.shiftInfoBottom}>
-                      <View
-                        style={[
-                          styles.dot,
-                          { backgroundColor: wp?.color ?? colors.accent },
-                        ]}
-                      />
-                      <AppText variant="caption" color={colors.textSecondary}>
-                        {wp?.name ?? "Unknown"} · {shiftDurationHrs(shift)}h
-                      </AppText>
-                    </View>
-                  </View>
-                </View>
-              </AppCard>
-            );
-          })
-        )}
+                  </AppCard>
+                </FadeInView>
+              );
+            })
+          )}
+        </FadeInView>
 
         {/* ━━ Upcoming Week Preview ━━ */}
         {weekShifts.length > 0 && (
-          <>
+          <FadeInView delay={350}>
             <View style={styles.sectionHeader}>
               <AppText variant="subheading">Upcoming Week</AppText>
               <AppBadge
@@ -372,105 +395,111 @@ export default function HomeScreen() {
                 +{weekShifts.length - 5} more shifts this week
               </AppText>
             )}
-          </>
+          </FadeInView>
         )}
 
         {/* ━━ Quick Actions ━━ */}
-        <AppText variant="subheading" style={styles.sectionTitle}>
-          Quick Actions
-        </AppText>
-        <View style={styles.actionsRow}>
-          <Pressable
-            onPress={() => router.push("/add-shift")}
-            style={({ pressed }) => [
-              styles.actionCard,
-              {
-                backgroundColor: colors.accent + "14",
-                borderColor: colors.accent + "33",
-                opacity: pressed ? 0.75 : 1,
-              },
-            ]}
-          >
-            <IconSymbol
-              name="plus.circle.fill"
-              size={28}
-              color={colors.accent}
-            />
-            <AppText variant="captionBold" color={colors.accent}>
-              Add Shift
-            </AppText>
-          </Pressable>
-          <Pressable
-            style={({ pressed }) => [
-              styles.actionCard,
-              {
-                backgroundColor: colors.success + "14",
-                borderColor: colors.success + "33",
-                opacity: pressed ? 0.75 : 1,
-              },
-            ]}
-          >
-            <IconSymbol name="camera.fill" size={28} color={colors.success} />
-            <AppText variant="captionBold" color={colors.success}>
-              Upload
-            </AppText>
-          </Pressable>
-          <Pressable
-            style={({ pressed }) => [
-              styles.actionCard,
-              {
-                backgroundColor: colors.warning + "14",
-                borderColor: colors.warning + "33",
-                opacity: pressed ? 0.75 : 1,
-              },
-            ]}
-          >
-            <IconSymbol
-              name="arrow.triangle.2.circlepath"
-              size={28}
-              color={colors.warning}
-            />
-            <AppText variant="captionBold" color={colors.warning}>
-              Sync Cal
-            </AppText>
-          </Pressable>
-        </View>
+        <FadeInView delay={420}>
+          <AppText variant="subheading" style={styles.sectionTitle}>
+            Quick Actions
+          </AppText>
+          <View style={styles.actionsRow}>
+            <Pressable
+              onPress={() => router.push("/add-shift")}
+              style={({ pressed }) => [
+                styles.actionCard,
+                {
+                  backgroundColor: colors.accent + "14",
+                  borderColor: colors.accent + "33",
+                  opacity: pressed ? 0.75 : 1,
+                },
+              ]}
+            >
+              <IconSymbol
+                name="plus.circle.fill"
+                size={28}
+                color={colors.accent}
+              />
+              <AppText variant="captionBold" color={colors.accent}>
+                Add Shift
+              </AppText>
+            </Pressable>
+            <Pressable
+              style={({ pressed }) => [
+                styles.actionCard,
+                {
+                  backgroundColor: colors.success + "14",
+                  borderColor: colors.success + "33",
+                  opacity: pressed ? 0.75 : 1,
+                },
+              ]}
+            >
+              <IconSymbol name="camera.fill" size={28} color={colors.success} />
+              <AppText variant="captionBold" color={colors.success}>
+                Upload
+              </AppText>
+            </Pressable>
+            <Pressable
+              style={({ pressed }) => [
+                styles.actionCard,
+                {
+                  backgroundColor: colors.warning + "14",
+                  borderColor: colors.warning + "33",
+                  opacity: pressed ? 0.75 : 1,
+                },
+              ]}
+            >
+              <IconSymbol
+                name="arrow.triangle.2.circlepath"
+                size={28}
+                color={colors.warning}
+              />
+              <AppText variant="captionBold" color={colors.warning}>
+                Sync Cal
+              </AppText>
+            </Pressable>
+          </View>
+        </FadeInView>
 
         {/* ━━ Stats Row ━━ */}
-        <View style={styles.statsRow}>
-          <AppCard style={styles.statCard} padding={14}>
-            <AppText variant="title" color={colors.accent} center>
-              {workplaces.length}
-            </AppText>
-            <AppText variant="label" center>
-              Jobs
-            </AppText>
-          </AppCard>
+        <FadeInView delay={500}>
+          <View style={styles.statsRow}>
+            <AppCard style={styles.statCard} padding={14}>
+              <AppText variant="title" color={colors.accent} center>
+                {workplaces.length}
+              </AppText>
+              <AppText variant="label" center>
+                Jobs
+              </AppText>
+            </AppCard>
 
-          <AppCard style={styles.statCard} padding={14}>
-            <AppText
-              variant="title"
-              color={
-                unresolvedConflicts.length > 0 ? colors.warning : colors.success
-              }
-              center
-            >
-              {unresolvedConflicts.length}
-            </AppText>
-            <AppText variant="label" center>
-              Conflicts
-            </AppText>
-          </AppCard>
+            <AppCard style={styles.statCard} padding={14}>
+              <AppText
+                variant="title"
+                color={
+                  unresolvedConflicts.length > 0
+                    ? colors.warning
+                    : colors.success
+                }
+                center
+              >
+                {unresolvedConflicts.length}
+              </AppText>
+              <AppText variant="label" center>
+                Conflicts
+              </AppText>
+            </AppCard>
 
-          <AppCard style={styles.statCard} padding={14}>
-            <AppText variant="title" color={colors.success} center>
-              {upcoming.length}
-            </AppText>
-            <AppText variant="label" center>
-              Upcoming
-            </AppText>
-          </AppCard>
-        </View>
+            <AppCard style={styles.statCard} padding={14}>
+              <AppText variant="title" color={colors.success} center>
+                {upcoming.length}
+              </AppText>
+              <AppText variant="label" center>
+                Upcoming
+              </AppText>
+            </AppCard>
+          </View>
+        </FadeInView>
 
         {/* Bottom spacer for tab bar */}
         <View style={styles.bottomSpacer} />
