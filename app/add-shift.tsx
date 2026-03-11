@@ -1,3 +1,4 @@
+import * as Crypto from "expo-crypto";
 import { router } from "expo-router";
 import React, { useMemo, useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, View } from "react-native";
@@ -23,8 +24,6 @@ const parseDateTimeLocal = (date: string, time: string): Date => {
   const [h, min] = time.split(":").map(Number);
   return new Date(y, m - 1, d, h, min, 0, 0);
 };
-
-const genId = () => `s_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 
 // ─── Component ──────────────────────────────────────────────────────
 export default function AddShiftScreen() {
@@ -77,7 +76,7 @@ export default function AddShiftScreen() {
 
     const now = new Date().toISOString();
     const shift: Shift = {
-      id: genId(),
+      id: Crypto.randomUUID(),
       source: "manual",
       workplaceId,
       title: title.trim(),

@@ -1,3 +1,4 @@
+import { router } from "expo-router";
 import React, { useCallback, useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 
@@ -14,14 +15,25 @@ import type { Shift } from "@/types";
 
 // ─── Date helpers ───────────────────────────────────────────────────
 const DAY_MS = 86_400_000;
+type ViewMode = "week" | "month";
 
 const startOfWeek = (d: Date): Date => {
   const copy = new Date(d);
   copy.setHours(0, 0, 0, 0);
-  const day = copy.getDay(); // 0=Sun
-  copy.setDate(copy.getDate() - day); // back to Sunday
+  const day = copy.getDay();
+  copy.setDate(copy.getDate() - day);
   return copy;
 };
+
+const startOfMonth = (d: Date): Date => {
+  const copy = new Date(d);
+  copy.setDate(1);
+  copy.setHours(0, 0, 0, 0);
+  return copy;
+};
+
+const daysInMonth = (d: Date): number =>
+  new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
 
 const fmtTime = (iso: string) =>
   new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -33,6 +45,8 @@ const shiftDur = (s: Shift) =>
     (new Date(s.endDateTime).getTime() - new Date(s.startDateTime).getTime()) /
     3_600_000
   ).toFixed(1);
+
+const WEEKDAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 // ─── Component ──────────────────────────────────────────────────────
 export default function CalendarScreen() {
@@ -47,10 +61,12 @@ export default function CalendarScreen() {
     return d;
   }, []);
 
+  const [viewMode, setViewMode] = useState<ViewMode>("week");
   const [weekOffset, setWeekOffset] = useState(0);
+  const [monthOffset, setMonthOffset] = useState(0);
   const [selectedDate, setSelectedDate] = useState(today);
 
-  // Week days (Sun-Sat) for current offset
+  // ── Week view data ──
   const weekDays = useMemo(() => {
     const start = startOfWeek(today);
     start.setDate(start.getDate() + weekOffset * 7);
@@ -60,7 +76,25 @@ export default function CalendarScreen() {
     );
   }, [today, weekOffset]);
 
-  // Month/year label for the week strip
+  // ── Month view data ──
+  const monthData = useMemo(() => {
+    const ref = new Date(today);
+    ref.setMonth(ref.getMonth() + monthOffset);
+    const first = startOfMonth(ref);
+    const totalDays = daysInMonth(ref);
+    const startDay = first.getDay();
+
+    const cells: (Date | null)[] = [];
+    for (let i = 0; i < startDay; i++) cells.push(null);
+    for (let i = 1; i <= totalDays; i++) {
+      const d = new Date(ref.getFullYear(), ref.getMonth(), i);
+      cells.push(d);
+    }
+    while (cells.length % 7 !== 0) cells.push(null);
+
+    return { first, cells, ref };
+  }, [today, monthOffset]);
+
   const weekLabel = useMemo(() => {
     const first = weekDays[0];
     const last = weekDays[6];
@@ -73,10 +107,20 @@ export default function CalendarScreen() {
     return `${first.toLocaleDateString(undefined, { month: "short" })} – ${last.toLocaleDateString(undefined, { month: "short", year: "numeric" })}`;
   }, [weekDays]);
 
-  // Shifts with shift dates pre-computed for quick lookup
+  const monthLabel = useMemo(
+    () =>
+      monthData.ref.toLocaleDateString(undefined, {
+        month: "long",
+        year: "numeric",
+      }),
+    [monthData],
+  );
+
+  // Shift lookup map
   const shiftDateMap = useMemo(() => {
     const map = new Map<string, Shift[]>();
     for (const s of shifts) {
+      if (s.status === "cancelled") continue;
       const key = new Date(s.startDateTime).toDateString();
       const arr = map.get(key) ?? [];
       arr.push(s);
@@ -120,10 +164,22 @@ export default function CalendarScreen() {
 
   const goToday = useCallback(() => {
     setWeekOffset(0);
+    setMonthOffset(0);
     setSelectedDate(today);
   }, [today]);
 
+  const navigateBack = () => {
+    if (viewMode === "week") setWeekOffset((o) => o - 1);
+    else setMonthOffset((o) => o - 1);
+  };
+
+  const navigateForward = () => {
+    if (viewMode === "week") setWeekOffset((o) => o + 1);
+    else setMonthOffset((o) => o + 1);
+  };
+
   const now = new Date();
+  const isOffToday = viewMode === "week" ? weekOffset !== 0 : monthOffset !== 0;
 
   return (
     <AppScreen>
@@ -134,28 +190,70 @@ export default function CalendarScreen() {
         {/* ━━ Header ━━ */}
         <View style={styles.headerRow}>
           <AppText variant="largeTitle">Calendar</AppText>
-          {weekOffset !== 0 && (
+          <View style={styles.headerRight}>
+            {isOffToday && (
+              <Pressable
+                onPress={goToday}
+                style={({ pressed }) => [
+                  styles.todayBtn,
+                  {
+                    backgroundColor: colors.accent + "18",
+                    borderColor: colors.accent + "44",
+                    opacity: pressed ? 0.7 : 1,
+                  },
+                ]}
+              >
+                <AppText variant="captionBold" color={colors.accent}>
+                  Today
+                </AppText>
+              </Pressable>
+            )}
             <Pressable
-              onPress={goToday}
+              onPress={() => router.push("/add-shift")}
               style={({ pressed }) => [
-                styles.todayBtn,
+                styles.addBtn,
                 {
-                  backgroundColor: colors.accent + "18",
-                  borderColor: colors.accent + "44",
-                  opacity: pressed ? 0.7 : 1,
+                  backgroundColor: colors.accent,
+                  opacity: pressed ? 0.8 : 1,
                 },
               ]}
             >
-              <AppText variant="captionBold" color={colors.accent}>
-                Today
-              </AppText>
+              <IconSymbol name="plus" size={18} color="#fff" />
             </Pressable>
-          )}
+          </View>
         </View>
 
-        {/* ━━ Week Navigator ━━ */}
+        {/* ━━ View Mode Toggle ━━ */}
+        <View style={[styles.toggleRow, { backgroundColor: colors.surface }]}>
+          {(["week", "month"] as ViewMode[]).map((mode) => (
+            <Pressable
+              key={mode}
+              onPress={() => setViewMode(mode)}
+              style={[
+                styles.toggleBtn,
+                viewMode === mode && {
+                  backgroundColor: colors.accent,
+                  shadowColor: colors.accent,
+                  shadowOffset: { width: 0, height: 2 },
+                  shadowOpacity: 0.3,
+                  shadowRadius: 4,
+                  elevation: 3,
+                },
+              ]}
+            >
+              <AppText
+                variant="captionBold"
+                color={viewMode === mode ? "#fff" : colors.textSecondary}
+              >
+                {mode === "week" ? "Week" : "Month"}
+              </AppText>
+            </Pressable>
+          ))}
+        </View>
+
+        {/* ━━ Navigation ━━ */}
         <View style={styles.weekNav}>
-          <Pressable onPress={() => setWeekOffset((o) => o - 1)} hitSlop={12}>
+          <Pressable onPress={navigateBack} hitSlop={12}>
             <IconSymbol
               name="chevron.left"
               size={22}
@@ -163,9 +261,9 @@ export default function CalendarScreen() {
             />
           </Pressable>
           <AppText variant="bodyBold" style={styles.flex1} center>
-            {weekLabel}
+            {viewMode === "week" ? weekLabel : monthLabel}
           </AppText>
-          <Pressable onPress={() => setWeekOffset((o) => o + 1)} hitSlop={12}>
+          <Pressable onPress={navigateForward} hitSlop={12}>
             <IconSymbol
               name="chevron.right"
               size={22}
@@ -174,70 +272,163 @@ export default function CalendarScreen() {
           </Pressable>
         </View>
 
-        {/* ━━ Day Strip ━━ */}
-        <View style={styles.dayStrip}>
-          {weekDays.map((d) => {
-            const isToday = isSameDay(d, today);
-            const isSelected = isSameDay(d, selectedDate);
-            const hasShifts = shiftDateMap.has(d.toDateString());
-            const isPast = d < today && !isToday;
+        {/* ━━ WEEK VIEW ━━ */}
+        {viewMode === "week" && (
+          <View style={styles.dayStrip}>
+            {weekDays.map((d) => {
+              const isToday = isSameDay(d, today);
+              const isSelected = isSameDay(d, selectedDate);
+              const shiftCount =
+                shiftDateMap.get(d.toDateString())?.length ?? 0;
+              const isPast = d < today && !isToday;
 
-            return (
-              <Pressable
-                key={d.toISOString()}
-                onPress={() => setSelectedDate(d)}
-                style={({ pressed }) => [
-                  styles.dayCell,
-                  isSelected && {
-                    backgroundColor: colors.accent,
-                    borderRadius: 14,
-                  },
-                  pressed && !isSelected && { opacity: 0.6 },
-                ]}
-              >
-                <AppText
-                  variant="label"
-                  color={
-                    isSelected
-                      ? "#fff"
-                      : isPast
-                        ? colors.textSecondary + "88"
-                        : colors.textSecondary
-                  }
+              return (
+                <Pressable
+                  key={d.toISOString()}
+                  onPress={() => setSelectedDate(d)}
+                  style={({ pressed }) => [
+                    styles.dayCell,
+                    isSelected && {
+                      backgroundColor: colors.accent,
+                      borderRadius: 14,
+                    },
+                    pressed && !isSelected && { opacity: 0.6 },
+                  ]}
                 >
-                  {d.toLocaleDateString(undefined, { weekday: "narrow" })}
-                </AppText>
-                <AppText
-                  variant="bodyBold"
-                  color={
-                    isSelected
-                      ? "#fff"
-                      : isToday
-                        ? colors.accent
+                  <AppText
+                    variant="label"
+                    color={
+                      isSelected
+                        ? "#fff"
                         : isPast
                           ? colors.textSecondary + "88"
-                          : colors.textPrimary
-                  }
-                >
-                  {d.getDate()}
-                </AppText>
-                {/* Shift indicator dot */}
-                <View
-                  style={[
-                    styles.shiftDot,
-                    {
-                      backgroundColor: hasShifts
-                        ? isSelected
+                          : colors.textSecondary
+                    }
+                  >
+                    {d.toLocaleDateString(undefined, { weekday: "narrow" })}
+                  </AppText>
+                  <AppText
+                    variant="bodyBold"
+                    color={
+                      isSelected
+                        ? "#fff"
+                        : isToday
+                          ? colors.accent
+                          : isPast
+                            ? colors.textSecondary + "88"
+                            : colors.textPrimary
+                    }
+                  >
+                    {d.getDate()}
+                  </AppText>
+                  <View
+                    style={[
+                      styles.shiftDot,
+                      {
+                        backgroundColor:
+                          shiftCount > 0
+                            ? isSelected
+                              ? "#fff"
+                              : colors.accent
+                            : "transparent",
+                      },
+                    ]}
+                  />
+                </Pressable>
+              );
+            })}
+          </View>
+        )}
+
+        {/* ━━ MONTH VIEW ━━ */}
+        {viewMode === "month" && (
+          <View style={styles.monthGrid}>
+            {/* Weekday header */}
+            <View style={styles.monthWeekHeader}>
+              {WEEKDAY_NAMES.map((name) => (
+                <View key={name} style={styles.monthHeaderCell}>
+                  <AppText variant="label" color={colors.textSecondary} center>
+                    {name}
+                  </AppText>
+                </View>
+              ))}
+            </View>
+            {/* Day cells */}
+            <View style={styles.monthCells}>
+              {monthData.cells.map((d, idx) => {
+                if (!d) {
+                  return <View key={`empty-${idx}`} style={styles.monthCell} />;
+                }
+                const isToday = isSameDay(d, today);
+                const isSelected = isSameDay(d, selectedDate);
+                const dayShiftsHere = shiftDateMap.get(d.toDateString());
+                const isPast = d < today && !isToday;
+
+                // Get unique workplace colors for this day
+                const shiftColors = (dayShiftsHere ?? [])
+                  .map(
+                    (s) =>
+                      workplaces.find((w) => w.id === s.workplaceId)?.color,
+                  )
+                  .filter((c): c is string => !!c)
+                  .filter((c, i, a) => a.indexOf(c) === i)
+                  .slice(0, 3);
+
+                return (
+                  <Pressable
+                    key={d.toISOString()}
+                    onPress={() => setSelectedDate(d)}
+                    style={[
+                      styles.monthCell,
+                      isSelected && {
+                        backgroundColor: colors.accent,
+                        borderRadius: 10,
+                      },
+                      isToday &&
+                        !isSelected && {
+                          borderWidth: 1.5,
+                          borderColor: colors.accent,
+                          borderRadius: 10,
+                        },
+                    ]}
+                  >
+                    <AppText
+                      variant={
+                        isToday || isSelected ? "captionBold" : "caption"
+                      }
+                      color={
+                        isSelected
                           ? "#fff"
-                          : colors.accent
-                        : "transparent",
-                    },
-                  ]}
-                />
-              </Pressable>
-            );
-          })}
-        </View>
+                          : isToday
+                            ? colors.accent
+                            : isPast
+                              ? colors.textSecondary + "77"
+                              : colors.textPrimary
+                      }
+                    >
+                      {d.getDate()}
+                    </AppText>
+                    {shiftColors.length > 0 && (
+                      <View style={styles.monthDotRow}>
+                        {shiftColors.map((c, i) => (
+                          <View
+                            key={i}
+                            style={[
+                              styles.monthDot,
+                              {
+                                backgroundColor: isSelected ? "#fff" : c,
+                              },
+                            ]}
+                          />
+                        ))}
+                      </View>
+                    )}
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+        )}
 
         {/* ━━ Selected Day Summary ━━ */}
         <FadeInView delay={0} duration={300}>
@@ -266,6 +457,11 @@ export default function CalendarScreen() {
         {dayShifts.length === 0 ? (
           <AppCard style={styles.emptyCard}>
             <View style={styles.emptyInner}>
+              <IconSymbol
+                name="calendar"
+                size={36}
+                color={colors.textSecondary + "66"}
+              />
               <AppText variant="heading" center>
                 No shifts
               </AppText>
@@ -274,6 +470,25 @@ export default function CalendarScreen() {
                   ? "Enjoy your day off! ☀️"
                   : "Nothing scheduled for this day"}
               </AppText>
+              <Pressable
+                onPress={() => router.push("/add-shift")}
+                style={({ pressed }) => [
+                  styles.addShiftLink,
+                  {
+                    backgroundColor: colors.accent + "14",
+                    opacity: pressed ? 0.7 : 1,
+                  },
+                ]}
+              >
+                <IconSymbol
+                  name="plus.circle.fill"
+                  size={16}
+                  color={colors.accent}
+                />
+                <AppText variant="captionBold" color={colors.accent}>
+                  Add a shift
+                </AppText>
+              </Pressable>
             </View>
           </AppCard>
         ) : (
@@ -349,7 +564,6 @@ export default function CalendarScreen() {
                           )}
                         </View>
 
-                        {/* Workplace + duration */}
                         <View style={styles.wpRow}>
                           <View
                             style={[
@@ -371,7 +585,6 @@ export default function CalendarScreen() {
                           </AppText>
                         </View>
 
-                        {/* Source tag */}
                         {shift.source !== "manual" && (
                           <View style={styles.sourceRow}>
                             <IconSymbol
@@ -389,14 +602,11 @@ export default function CalendarScreen() {
                             >
                               {shift.source === "image_ocr"
                                 ? "From photo"
-                                : shift.source === "google_calendar"
-                                  ? "Google Calendar"
-                                  : "Apple Calendar"}
+                                : "Google Calendar"}
                             </AppText>
                           </View>
                         )}
 
-                        {/* Notes */}
                         {shift.notes && (
                           <AppText
                             variant="caption"
@@ -405,6 +615,20 @@ export default function CalendarScreen() {
                             numberOfLines={1}
                           >
                             {shift.notes}
+                          </AppText>
+                        )}
+
+                        {wp?.hourlyRate && (
+                          <AppText
+                            variant="label"
+                            color={colors.success}
+                            style={styles.payLabel}
+                          >
+                            $
+                            {(
+                              parseFloat(shiftDur(shift)) * wp.hourlyRate
+                            ).toFixed(2)}{" "}
+                            est.
                           </AppText>
                         )}
                       </View>
@@ -416,13 +640,17 @@ export default function CalendarScreen() {
           })
         )}
 
-        {/* ━━ All Shifts This Week ━━ */}
+        {/* ━━ Period Summary ━━ */}
         {(() => {
-          const weekShiftCount = weekDays.reduce(
+          const viewDays =
+            viewMode === "week"
+              ? weekDays
+              : monthData.cells.filter((d): d is Date => d !== null);
+          const totalShifts = viewDays.reduce(
             (acc, d) => acc + (shiftDateMap.get(d.toDateString())?.length ?? 0),
             0,
           );
-          const weekHrs = weekDays.reduce(
+          const totalHrs = viewDays.reduce(
             (acc, d) =>
               acc +
               (shiftDateMap.get(d.toDateString()) ?? []).reduce(
@@ -435,16 +663,30 @@ export default function CalendarScreen() {
               ),
             0,
           );
-          if (weekShiftCount === 0) return null;
+          const totalPay = viewDays.reduce(
+            (acc, d) =>
+              acc +
+              (shiftDateMap.get(d.toDateString()) ?? []).reduce((earn, s) => {
+                const wp = workplaces.find((w) => w.id === s.workplaceId);
+                const hrs =
+                  (new Date(s.endDateTime).getTime() -
+                    new Date(s.startDateTime).getTime()) /
+                  3_600_000;
+                return earn + hrs * (wp?.hourlyRate ?? 0);
+              }, 0),
+            0,
+          );
+
+          if (totalShifts === 0) return null;
           return (
             <AppCard style={styles.weekSummary} padding={16}>
               <AppText variant="overline" style={styles.weekSumLabel}>
-                THIS WEEK
+                {viewMode === "week" ? "THIS WEEK" : "THIS MONTH"}
               </AppText>
               <View style={styles.weekStatsRow}>
                 <View style={styles.weekStat}>
                   <AppText variant="title" color={colors.accent} center>
-                    {weekShiftCount}
+                    {totalShifts}
                   </AppText>
                   <AppText variant="label" center>
                     Shifts
@@ -458,7 +700,7 @@ export default function CalendarScreen() {
                 />
                 <View style={styles.weekStat}>
                   <AppText variant="title" color={colors.success} center>
-                    {weekHrs.toFixed(1)}
+                    {totalHrs.toFixed(1)}
                   </AppText>
                   <AppText variant="label" center>
                     Hours
@@ -472,27 +714,7 @@ export default function CalendarScreen() {
                 />
                 <View style={styles.weekStat}>
                   <AppText variant="title" color={colors.warning} center>
-                    $
-                    {weekDays
-                      .reduce(
-                        (acc, d) =>
-                          acc +
-                          (shiftDateMap.get(d.toDateString()) ?? []).reduce(
-                            (earn, s) => {
-                              const wp = workplaces.find(
-                                (w) => w.id === s.workplaceId,
-                              );
-                              const hrs =
-                                (new Date(s.endDateTime).getTime() -
-                                  new Date(s.startDateTime).getTime()) /
-                                3_600_000;
-                              return earn + hrs * (wp?.hourlyRate ?? 0);
-                            },
-                            0,
-                          ),
-                        0,
-                      )
-                      .toFixed(0)}
+                    ${totalPay.toFixed(0)}
                   </AppText>
                   <AppText variant="label" center>
                     Est. Pay
@@ -518,16 +740,38 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 16,
+    marginBottom: 12,
   },
+  headerRight: { flexDirection: "row", alignItems: "center", gap: 8 },
   todayBtn: {
     paddingHorizontal: 14,
     paddingVertical: 6,
     borderRadius: 10,
     borderWidth: 1,
   },
+  addBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: "center",
+    justifyContent: "center",
+  },
 
-  // Week nav
+  // Toggle
+  toggleRow: {
+    flexDirection: "row",
+    borderRadius: 12,
+    padding: 3,
+    marginBottom: 14,
+  },
+  toggleBtn: {
+    flex: 1,
+    alignItems: "center",
+    paddingVertical: 8,
+    borderRadius: 10,
+  },
+
+  // Navigation
   weekNav: {
     flexDirection: "row",
     alignItems: "center",
@@ -535,7 +779,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
 
-  // Day strip
+  // Week strip
   dayStrip: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -554,6 +798,29 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
 
+  // Month grid
+  monthGrid: { marginBottom: 16 },
+  monthWeekHeader: { flexDirection: "row", marginBottom: 8 },
+  monthHeaderCell: { flex: 1, alignItems: "center" },
+  monthCells: { flexDirection: "row", flexWrap: "wrap" },
+  monthCell: {
+    width: "14.28%" as unknown as number,
+    alignItems: "center",
+    paddingVertical: 6,
+    minHeight: 44,
+    justifyContent: "center",
+  },
+  monthDotRow: {
+    flexDirection: "row",
+    gap: 2,
+    marginTop: 2,
+  },
+  monthDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+  },
+
   // Day summary
   daySummary: {
     flexDirection: "row",
@@ -564,7 +831,16 @@ const styles = StyleSheet.create({
 
   // Empty
   emptyCard: { marginBottom: 16 },
-  emptyInner: { paddingVertical: 24, gap: 6 },
+  emptyInner: { paddingVertical: 24, gap: 8, alignItems: "center" },
+  addShiftLink: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 10,
+    marginTop: 4,
+  },
 
   // Shift cards
   shiftCard: { marginBottom: 10 },
@@ -603,8 +879,9 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   notes: { marginTop: 4, fontStyle: "italic" },
+  payLabel: { marginTop: 4 },
 
-  // Week summary
+  // Summary
   weekSummary: { marginTop: 12, marginBottom: 16 },
   weekSumLabel: { marginBottom: 12 },
   weekStatsRow: {

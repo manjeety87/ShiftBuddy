@@ -1,14 +1,21 @@
 import { useRouter } from "expo-router";
-import React from "react";
-import { Pressable, ScrollView, StyleSheet, View } from "react-native";
+import React, { useEffect, useState } from "react";
+import {
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    TextInput,
+    View,
+} from "react-native";
 
 import { AppBadge } from "@/components/ui/app-badge";
+import { AppButton } from "@/components/ui/app-button";
 import { AppCard } from "@/components/ui/app-card";
 import { AppScreen } from "@/components/ui/app-screen";
 import { AppText } from "@/components/ui/app-text";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useAppTheme } from "@/hooks/use-app-theme";
-import { useThemeStore } from "@/store";
+import { useShiftStore, useThemeStore } from "@/store";
 import { allThemes } from "@/theme";
 
 export default function SettingsScreen() {
@@ -17,6 +24,23 @@ export default function SettingsScreen() {
   const currentThemeId = useThemeStore((s) => s.themeId);
   const setTheme = useThemeStore((s) => s.setTheme);
   const currentTheme = allThemes.find((t) => t.id === currentThemeId);
+
+  // Shift store (user profile)
+  const storeUser = useShiftStore((s) => s.user);
+  const updateUser = useShiftStore((s) => s.updateUser);
+
+  const [nameInput, setNameInput] = useState(storeUser?.name ?? "");
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    setNameInput(storeUser?.name ?? "");
+  }, [storeUser?.name]);
+
+  const handleSaveName = () => {
+    if (nameInput.trim()) updateUser({ name: nameInput.trim() });
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  };
 
   return (
     <AppScreen>
@@ -33,8 +57,64 @@ export default function SettingsScreen() {
           <AppText variant="overline" style={styles.sectionLabel}>
             PROFILE
           </AppText>
-          <AppText variant="body">Alex Johnson</AppText>
-          <AppText variant="caption">alex@example.com</AppText>
+          <AppText variant="body">
+            {storeUser?.name || "Set your name in AI Scanner below"}
+          </AppText>
+          {storeUser?.email ? (
+            <AppText variant="caption">{storeUser.email}</AppText>
+          ) : null}
+        </AppCard>
+
+        {/* ── OCR Name for AI Schedule Scanner ── */}
+        <AppText variant="heading" style={styles.sectionTitle}>
+          AI Schedule Scanner
+        </AppText>
+        <AppCard style={styles.card}>
+          <AppText variant="overline" style={styles.sectionLabel}>
+            YOUR NAME (for schedule matching)
+          </AppText>
+          <AppText
+            variant="caption"
+            color={colors.textSecondary}
+            style={styles.configHint}
+          >
+            We use this to find your shifts when scanning a schedule photo.
+          </AppText>
+          <View style={[styles.inputRow, { borderColor: colors.border }]}>
+            <TextInput
+              value={nameInput}
+              onChangeText={setNameInput}
+              placeholder="e.g. Manjeet Yadav"
+              placeholderTextColor={colors.textSecondary + "88"}
+              autoCapitalize="words"
+              returnKeyType="done"
+              onSubmitEditing={handleSaveName}
+              style={[
+                styles.configInput,
+                { color: colors.textPrimary, flex: 1 },
+              ]}
+            />
+            <IconSymbol
+              name="person.fill"
+              size={18}
+              color={colors.textSecondary}
+            />
+          </View>
+          <View style={styles.saveBtnRow}>
+            <AppButton
+              label={saved ? "✓ Saved!" : "Save Name"}
+              variant={saved ? "outline" : "primary"}
+              size="md"
+              onPress={handleSaveName}
+              style={styles.saveBtn}
+            />
+            <View style={styles.statusDot}>
+              <View style={[styles.dot, { backgroundColor: colors.success }]} />
+              <AppText variant="caption" color={colors.success}>
+                AI OCR Active
+              </AppText>
+            </View>
+          </View>
         </AppCard>
 
         {/* ── Theme ── */}
@@ -86,7 +166,7 @@ export default function SettingsScreen() {
           />
         </Pressable>
 
-        {/* Quick-switch row: 4 popular themes */}
+        {/* Quick-switch row: 6 popular themes */}
         <AppText variant="caption" style={styles.quickLabel}>
           Quick switch
         </AppText>
@@ -94,17 +174,18 @@ export default function SettingsScreen() {
           {allThemes.slice(0, 6).map((t) => {
             const isActive = t.id === currentThemeId;
             return (
-              <View
+              <Pressable
                 key={t.id}
-                style={[
+                onPress={() => setTheme(t.id)}
+                style={({ pressed }) => [
                   styles.themeSwatch,
                   {
                     backgroundColor: t.tokens.background,
                     borderColor: isActive ? t.tokens.accent : t.tokens.border,
                     borderWidth: isActive ? 2 : 1,
+                    opacity: pressed ? 0.7 : 1,
                   },
                 ]}
-                onTouchEnd={() => setTheme(t.id)}
               >
                 <View
                   style={[
@@ -121,7 +202,7 @@ export default function SettingsScreen() {
                   {t.name}
                 </AppText>
                 {isActive && <AppBadge label="Active" variant="accent" />}
-              </View>
+              </Pressable>
             );
           })}
         </View>
@@ -131,8 +212,97 @@ export default function SettingsScreen() {
           style={styles.seeAllBtn}
         >
           <AppText variant="captionBold" color={colors.accent}>
-            See all 16 themes →
+            See all {allThemes.length} themes →
           </AppText>
+        </Pressable>
+
+        {/* Create custom theme */}
+        <Pressable
+          onPress={() => router.push("/custom-theme")}
+          style={({ pressed }) => [
+            styles.linkCard,
+            {
+              backgroundColor: colors.card,
+              borderColor: colors.accent + "44",
+              opacity: pressed ? 0.8 : 1,
+            },
+          ]}
+        >
+          <IconSymbol
+            name="paintpalette.fill"
+            size={20}
+            color={colors.accent}
+          />
+          <View style={styles.flex1}>
+            <AppText variant="bodyBold">Create Custom Theme</AppText>
+            <AppText variant="caption" color={colors.textSecondary}>
+              Pick your own colors with live preview
+            </AppText>
+          </View>
+          <IconSymbol
+            name="chevron.right"
+            size={16}
+            color={colors.textSecondary}
+          />
+        </Pressable>
+
+        {/* ── Quick Links ── */}
+        <AppText variant="heading" style={styles.sectionTitle}>
+          Quick Links
+        </AppText>
+
+        <Pressable
+          onPress={() => router.push("/add-workplace")}
+          style={({ pressed }) => [
+            styles.linkCard,
+            {
+              backgroundColor: colors.card,
+              borderColor: colors.border,
+              opacity: pressed ? 0.8 : 1,
+            },
+          ]}
+        >
+          <IconSymbol name="briefcase.fill" size={20} color={colors.accent} />
+          <View style={styles.flex1}>
+            <AppText variant="bodyBold">Add Workplace</AppText>
+            <AppText variant="caption" color={colors.textSecondary}>
+              Add a new job or employer
+            </AppText>
+          </View>
+          <IconSymbol
+            name="chevron.right"
+            size={16}
+            color={colors.textSecondary}
+          />
+        </Pressable>
+
+        <Pressable
+          onPress={() => router.push("/add-shift")}
+          style={({ pressed }) => [
+            styles.linkCard,
+            {
+              backgroundColor: colors.card,
+              borderColor: colors.border,
+              opacity: pressed ? 0.8 : 1,
+            },
+          ]}
+        >
+          <IconSymbol
+            name="plus.circle.fill"
+            size={20}
+            color={colors.success}
+          />
+          <View style={styles.flex1}>
+            <AppText variant="bodyBold">Add Shift</AppText>
+            <AppText variant="caption" color={colors.textSecondary}>
+              Manually add a new shift
+            </AppText>
+          </View>
+          <IconSymbol
+            name="chevron.right"
+            size={16}
+            color={colors.textSecondary}
+          />
         </Pressable>
 
         {/* ── Placeholder sections ── */}
@@ -199,6 +369,46 @@ const styles = StyleSheet.create({
   },
   swatchName: { fontSize: 10 },
   seeAllBtn: { alignSelf: "center", marginTop: 10, marginBottom: 20 },
+  linkCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    marginBottom: 10,
+  },
+  flex1: { flex: 1 },
   comingSoonItem: { marginTop: 6 },
   bottomSpacer: { height: 100 },
+  // Config inputs
+  configHint: { marginBottom: 10, lineHeight: 18 },
+  inputRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 8,
+  },
+  configInput: {
+    fontSize: 14,
+    fontFamily: "monospace",
+    padding: 0,
+  },
+  saveBtnRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 14,
+    gap: 12,
+  },
+  saveBtn: { flexShrink: 0 },
+  statusDot: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  dot: { width: 8, height: 8, borderRadius: 4 },
 });

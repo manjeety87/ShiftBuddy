@@ -120,7 +120,7 @@ export default function HomeScreen() {
               ]}
             >
               <AppText variant="subheading" color={colors.accent}>
-                {user.name.charAt(0)}
+                {user?.name?.charAt(0) ?? "?"}
               </AppText>
             </View>
           </View>
@@ -425,6 +425,7 @@ export default function HomeScreen() {
               </AppText>
             </Pressable>
             <Pressable
+              onPress={() => router.push("/upload-shift")}
               style={({ pressed }) => [
                 styles.actionCard,
                 {
@@ -440,6 +441,7 @@ export default function HomeScreen() {
               </AppText>
             </Pressable>
             <Pressable
+              onPress={() => router.push("/conflicts")}
               style={({ pressed }) => [
                 styles.actionCard,
                 {
@@ -455,7 +457,7 @@ export default function HomeScreen() {
                 color={colors.warning}
               />
               <AppText variant="captionBold" color={colors.warning}>
-                Sync Cal
+                Conflicts
               </AppText>
             </Pressable>
           </View>

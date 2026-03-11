@@ -1,5 +1,6 @@
+import { useRouter } from "expo-router";
 import React, { useMemo } from "react";
-import { Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { Alert, Pressable, ScrollView, StyleSheet, View } from "react-native";
 
 import { AnimatedPress } from "@/components/ui/animated-press";
 import { AppBadge } from "@/components/ui/app-badge";
@@ -24,6 +25,7 @@ const fmtDate = (iso: string) =>
 
 export default function WorkplacesScreen() {
   const { colors } = useAppTheme();
+  const router = useRouter();
   const workplaces = useShiftStore((s) => s.workplaces);
   const shifts = useShiftStore((s) => s.shifts);
 
@@ -101,6 +103,7 @@ export default function WorkplacesScreen() {
             </AppText>
           </View>
           <Pressable
+            onPress={() => router.push("/add-workplace")}
             style={({ pressed }) => [
               styles.addBtn,
               {
@@ -180,6 +183,12 @@ export default function WorkplacesScreen() {
                     </View>
                     <Pressable
                       hitSlop={10}
+                      onPress={() =>
+                        Alert.alert(
+                          "Edit Workplace",
+                          `Editing "${wp.name}" will be available soon!`,
+                        )
+                      }
                       style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1 }]}
                     >
                       <IconSymbol

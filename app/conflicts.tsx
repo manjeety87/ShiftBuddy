@@ -32,8 +32,8 @@ export default function ConflictsScreen() {
   const conflicts = useShiftStore((s) => s.conflicts);
   const shifts = useShiftStore((s) => s.shifts);
   const workplaces = useShiftStore((s) => s.workplaces);
-  const setConflicts = useShiftStore((s) => s.setConflicts);
-  const removeShift = useShiftStore((s) => s.removeShift);
+  const cancelShift = useShiftStore((s) => s.cancelShift);
+  const resolveConflict = useShiftStore((s) => s.resolveConflict);
 
   const unresolved = useMemo(
     () => conflicts.filter((c) => !c.resolved),
@@ -45,11 +45,7 @@ export default function ConflictsScreen() {
   );
 
   const handleResolve = (conflictId: string) => {
-    setConflicts(
-      conflicts.map((c) =>
-        c.id === conflictId ? { ...c, resolved: true } : c,
-      ),
-    );
+    resolveConflict(conflictId);
   };
 
   const handleDismissShift = (conflictId: string, shiftId: string) => {
@@ -63,8 +59,12 @@ export default function ConflictsScreen() {
           text: "Cancel Shift",
           style: "destructive",
           onPress: () => {
-            removeShift(shiftId);
-            handleResolve(conflictId);
+            cancelShift(shiftId);
+            resolveConflict(conflictId);
+            Alert.alert(
+              "Shift Cancelled",
+              `"${shift?.title ?? "Shift"}" has been cancelled and the conflict is resolved.`,
+            );
           },
         },
       ],
@@ -173,15 +173,32 @@ export default function ConflictsScreen() {
                           { backgroundColor: wpA?.color ?? colors.accent },
                         ]}
                       />
-                      <AppText variant="bodyBold" style={styles.flex1}>
+                      <AppText
+                        variant="bodyBold"
+                        style={[
+                          styles.flex1,
+                          shiftA.status === "cancelled" && {
+                            textDecorationLine: "line-through",
+                            opacity: 0.5,
+                          },
+                        ]}
+                      >
                         {shiftA.title}
                       </AppText>
                       <AppBadge
                         label={
-                          shiftA.status === "pending" ? "Pending" : "Confirmed"
+                          shiftA.status === "cancelled"
+                            ? "Cancelled"
+                            : shiftA.status === "pending"
+                              ? "Pending"
+                              : "Confirmed"
                         }
                         variant={
-                          shiftA.status === "pending" ? "warning" : "success"
+                          shiftA.status === "cancelled"
+                            ? "error"
+                            : shiftA.status === "pending"
+                              ? "warning"
+                              : "success"
                         }
                       />
                     </View>
@@ -196,25 +213,29 @@ export default function ConflictsScreen() {
                         {shiftDur(shiftA.startDateTime, shiftA.endDateTime)}h)
                       </AppText>
                     </View>
-                    <Pressable
-                      onPress={() => handleDismissShift(conflict.id, shiftA.id)}
-                      style={({ pressed }) => [
-                        styles.cancelBtn,
-                        {
-                          borderColor: colors.error + "44",
-                          opacity: pressed ? 0.6 : 1,
-                        },
-                      ]}
-                    >
-                      <IconSymbol
-                        name="xmark.circle.fill"
-                        size={14}
-                        color={colors.error}
-                      />
-                      <AppText variant="captionBold" color={colors.error}>
-                        Cancel this shift
-                      </AppText>
-                    </Pressable>
+                    {shiftA.status !== "cancelled" && (
+                      <Pressable
+                        onPress={() =>
+                          handleDismissShift(conflict.id, shiftA.id)
+                        }
+                        style={({ pressed }) => [
+                          styles.cancelBtn,
+                          {
+                            borderColor: colors.error + "44",
+                            opacity: pressed ? 0.6 : 1,
+                          },
+                        ]}
+                      >
+                        <IconSymbol
+                          name="xmark.circle.fill"
+                          size={14}
+                          color={colors.error}
+                        />
+                        <AppText variant="captionBold" color={colors.error}>
+                          Cancel this shift
+                        </AppText>
+                      </Pressable>
+                    )}
                   </View>
 
                   {/* VS divider */}
@@ -255,15 +276,32 @@ export default function ConflictsScreen() {
                           { backgroundColor: wpB?.color ?? colors.accent },
                         ]}
                       />
-                      <AppText variant="bodyBold" style={styles.flex1}>
+                      <AppText
+                        variant="bodyBold"
+                        style={[
+                          styles.flex1,
+                          shiftB.status === "cancelled" && {
+                            textDecorationLine: "line-through",
+                            opacity: 0.5,
+                          },
+                        ]}
+                      >
                         {shiftB.title}
                       </AppText>
                       <AppBadge
                         label={
-                          shiftB.status === "pending" ? "Pending" : "Confirmed"
+                          shiftB.status === "cancelled"
+                            ? "Cancelled"
+                            : shiftB.status === "pending"
+                              ? "Pending"
+                              : "Confirmed"
                         }
                         variant={
-                          shiftB.status === "pending" ? "warning" : "success"
+                          shiftB.status === "cancelled"
+                            ? "error"
+                            : shiftB.status === "pending"
+                              ? "warning"
+                              : "success"
                         }
                       />
                     </View>
@@ -278,25 +316,29 @@ export default function ConflictsScreen() {
                         {shiftDur(shiftB.startDateTime, shiftB.endDateTime)}h)
                       </AppText>
                     </View>
-                    <Pressable
-                      onPress={() => handleDismissShift(conflict.id, shiftB.id)}
-                      style={({ pressed }) => [
-                        styles.cancelBtn,
-                        {
-                          borderColor: colors.error + "44",
-                          opacity: pressed ? 0.6 : 1,
-                        },
-                      ]}
-                    >
-                      <IconSymbol
-                        name="xmark.circle.fill"
-                        size={14}
-                        color={colors.error}
-                      />
-                      <AppText variant="captionBold" color={colors.error}>
-                        Cancel this shift
-                      </AppText>
-                    </Pressable>
+                    {shiftB.status !== "cancelled" && (
+                      <Pressable
+                        onPress={() =>
+                          handleDismissShift(conflict.id, shiftB.id)
+                        }
+                        style={({ pressed }) => [
+                          styles.cancelBtn,
+                          {
+                            borderColor: colors.error + "44",
+                            opacity: pressed ? 0.6 : 1,
+                          },
+                        ]}
+                      >
+                        <IconSymbol
+                          name="xmark.circle.fill"
+                          size={14}
+                          color={colors.error}
+                        />
+                        <AppText variant="captionBold" color={colors.error}>
+                          Cancel this shift
+                        </AppText>
+                      </Pressable>
+                    )}
                   </View>
 
                   {/* Keep Both */}
