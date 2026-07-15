@@ -1,9 +1,10 @@
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { BlurView } from "expo-blur";
 import { Tabs } from "expo-router";
 import React from "react";
-import { Platform } from "react-native";
+import { Platform, Text } from "react-native";
 
 import { HapticTab } from "@/components/haptic-tab";
-import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useAppTheme } from "@/hooks/use-app-theme";
 
 export default function TabLayout() {
@@ -14,23 +15,61 @@ export default function TabLayout() {
     <Tabs
       screenOptions={{
         tabBarActiveTintColor: colors.accent,
-        tabBarInactiveTintColor: colors.textSecondary,
+        tabBarInactiveTintColor: theme.tokens.outline_variant,
+        tabBarActiveBackgroundColor: `${theme.tokens.primary}1A`,
         tabBarStyle: {
-          backgroundColor: isGlass ? colors.surface + "CC" : colors.surface,
-          borderTopColor: colors.border,
-          borderTopWidth: isGlass ? 0.5 : 1,
-          elevation: isGlass ? 0 : 8,
+          position: "absolute",
+          backgroundColor: isGlass ? "transparent" : `${colors.surface}CC`,
+          borderTopColor: `${theme.tokens.outline_variant}26`,
+          borderTopWidth: 1,
+          borderTopLeftRadius: 32,
+          borderTopRightRadius: 32,
+          height: Platform.OS === "ios" ? 94 : 88,
+          paddingHorizontal: 12,
+          paddingTop: 6,
+          paddingBottom: Platform.OS === "ios" ? 24 : 16,
+          elevation: 0,
           shadowColor: colors.shadow,
-          shadowOffset: { width: 0, height: -2 },
-          shadowOpacity: isGlass ? 0.15 : 0.08,
-          shadowRadius: isGlass ? 12 : 4,
-          paddingTop: Platform.OS === "ios" ? 2 : 0,
+          shadowOffset: { width: 0, height: -8 },
+          shadowOpacity: 0.3,
+          shadowRadius: 24,
         },
-        tabBarLabelStyle: {
-          fontSize: 11,
-          fontWeight: "600",
-          letterSpacing: 0.2,
+        tabBarItemStyle: {
+          borderRadius: 12,
+          marginHorizontal: 2,
+          marginVertical: 4,
+          minHeight: 42,
+          overflow: "hidden",
         },
+        tabBarLabel: ({ focused, color, children }) => (
+          <Text
+            style={{
+              fontSize: 11,
+              fontWeight: focused ? "700" : "600",
+              letterSpacing: 0.8,
+              textTransform: "uppercase",
+              color,
+            }}
+          >
+            {children}
+          </Text>
+        ),
+        tabBarIconStyle: {
+          marginTop: 1,
+        },
+        tabBarBackground: () =>
+          isGlass ? (
+            <BlurView
+              intensity={30}
+              tint={theme.tokens.blurTint}
+              style={{
+                flex: 1,
+                backgroundColor: `${colors.surface}CC`,
+                borderTopLeftRadius: 32,
+                borderTopRightRadius: 32,
+              }}
+            />
+          ) : null,
         headerShown: false,
         tabBarButton: HapticTab,
       }}
@@ -39,8 +78,25 @@ export default function TabLayout() {
         name="index"
         options={{
           title: "Home",
-          tabBarIcon: ({ color }) => (
-            <IconSymbol size={28} name="house.fill" color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <MaterialCommunityIcons
+              size={22}
+              name={focused ? "view-dashboard" : "view-dashboard-outline"}
+              color={color}
+            />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="explore"
+        options={{
+          title: "Shifts",
+          tabBarIcon: ({ color, focused }) => (
+            <MaterialCommunityIcons
+              size={22}
+              name={focused ? "text-box-multiple" : "text-box-multiple-outline"}
+              color={color}
+            />
           ),
         }}
       />
@@ -48,8 +104,12 @@ export default function TabLayout() {
         name="calendar"
         options={{
           title: "Calendar",
-          tabBarIcon: ({ color }) => (
-            <IconSymbol size={28} name="calendar" color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <MaterialCommunityIcons
+              size={22}
+              name={focused ? "calendar-month" : "calendar-month-outline"}
+              color={color}
+            />
           ),
         }}
       />
@@ -57,8 +117,12 @@ export default function TabLayout() {
         name="workplaces"
         options={{
           title: "Jobs",
-          tabBarIcon: ({ color }) => (
-            <IconSymbol size={28} name="briefcase.fill" color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <MaterialCommunityIcons
+              size={22}
+              name={focused ? "briefcase" : "briefcase-outline"}
+              color={color}
+            />
           ),
         }}
       />
@@ -66,16 +130,13 @@ export default function TabLayout() {
         name="settings"
         options={{
           title: "Settings",
-          tabBarIcon: ({ color }) => (
-            <IconSymbol size={28} name="gearshape.fill" color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <MaterialCommunityIcons
+              size={22}
+              name={focused ? "cog" : "cog-outline"}
+              color={color}
+            />
           ),
-        }}
-      />
-      {/* Hide the old explore tab */}
-      <Tabs.Screen
-        name="explore"
-        options={{
-          href: null,
         }}
       />
     </Tabs>

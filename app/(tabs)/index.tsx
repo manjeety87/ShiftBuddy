@@ -1,20 +1,23 @@
+import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import React from "react";
-import { Pressable, ScrollView, StyleSheet, View } from "react-native";
+import {
+  Image,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  View,
+  type ViewStyle,
+} from "react-native";
 
-import { AnimatedPress } from "@/components/ui/animated-press";
 import { AppBadge } from "@/components/ui/app-badge";
-import { AppCard } from "@/components/ui/app-card";
 import { AppScreen } from "@/components/ui/app-screen";
 import { AppText } from "@/components/ui/app-text";
-import { FadeInView } from "@/components/ui/fade-in-view";
 import { IconSymbol } from "@/components/ui/icon-symbol";
-import { PulseView } from "@/components/ui/pulse-view";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useShiftStore } from "@/store";
 import type { Shift } from "@/types";
 
-// ─── Helpers ────────────────────────────────────────────────────────
 const fmtTime = (iso: string) =>
   new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
@@ -25,618 +28,1028 @@ const fmtDate = (iso: string) =>
     day: "numeric",
   });
 
-const shiftDurationHrs = (s: Shift) =>
-  (
-    (new Date(s.endDateTime).getTime() - new Date(s.startDateTime).getTime()) /
-    3_600_000
-  ).toFixed(1);
+const shiftDurationHours = (shift: Shift) => {
+  const ms =
+    new Date(shift.endDateTime).getTime() -
+    new Date(shift.startDateTime).getTime();
+  return ms / 3_600_000;
+};
+
+const timeUntil = (iso: string) => {
+  const diffMs = new Date(iso).getTime() - Date.now();
+  if (diffMs <= 0) return "Now";
+  const totalMinutes = Math.floor(diffMs / 60_000);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+
+  if (hours >= 24) {
+    const days = Math.floor(hours / 24);
+    const remHours = hours % 24;
+    return `${days}d ${remHours}h`;
+  }
+
+  if (hours === 0) return `${minutes}m`;
+  return `${hours}h ${minutes}m`;
+};
 
 export default function HomeScreen() {
-  const { colors } = useAppTheme();
-  const shifts = useShiftStore((s) => s.shifts);
-  const workplaces = useShiftStore((s) => s.workplaces);
-  const conflicts = useShiftStore((s) => s.conflicts);
-  const user = useShiftStore((s) => s.user);
+  const { theme } = useAppTheme();
+  const tokens = theme.tokens;
+
+  const shifts = useShiftStore((state) => state.shifts);
+  const workplaces = useShiftStore((state) => state.workplaces);
+  const conflicts = useShiftStore((state) => state.conflicts);
+  const user = useShiftStore((state) => state.user);
 
   const now = new Date();
+  const todayKey = now.toDateString();
 
-  // ── Derived data ──
   const upcoming = shifts
-    .filter((s) => s.status !== "cancelled" && new Date(s.startDateTime) > now)
+    .filter(
+      (shift) =>
+        shift.status !== "cancelled" &&
+        new Date(shift.startDateTime).getTime() > now.getTime(),
+    )
     .sort(
       (a, b) =>
         new Date(a.startDateTime).getTime() -
         new Date(b.startDateTime).getTime(),
     );
+
   const nextShift = upcoming[0];
-  const nextWp = nextShift
-    ? workplaces.find((w) => w.id === nextShift.workplaceId)
+  const nextWorkplace = nextShift
+    ? workplaces.find((workplace) => workplace.id === nextShift.workplaceId)
     : undefined;
 
-  const todayStr = now.toDateString();
   const todayShifts = shifts
-    .filter((s) => new Date(s.startDateTime).toDateString() === todayStr)
+    .filter(
+      (shift) => new Date(shift.startDateTime).toDateString() === todayKey,
+    )
     .sort(
       (a, b) =>
         new Date(a.startDateTime).getTime() -
         new Date(b.startDateTime).getTime(),
     );
 
-  const todayTotalHrs = todayShifts.reduce(
-    (acc, s) =>
-      acc +
-      (new Date(s.endDateTime).getTime() -
-        new Date(s.startDateTime).getTime()) /
-        3_600_000,
+  const unresolvedConflicts = conflicts.filter(
+    (conflict) => !conflict.resolved,
+  );
+  const topConflict = unresolvedConflicts[0];
+
+  const conflictShiftA = topConflict
+    ? shifts.find((shift) => shift.id === topConflict.shiftAId)
+    : undefined;
+  const conflictShiftB = topConflict
+    ? shifts.find((shift) => shift.id === topConflict.shiftBId)
+    : undefined;
+
+  const conflictWorkplaceA = conflictShiftA
+    ? workplaces.find(
+        (workplace) => workplace.id === conflictShiftA.workplaceId,
+      )
+    : undefined;
+  const conflictWorkplaceB = conflictShiftB
+    ? workplaces.find(
+        (workplace) => workplace.id === conflictShiftB.workplaceId,
+      )
+    : undefined;
+
+  const weekStart = new Date(now);
+  weekStart.setHours(0, 0, 0, 0);
+
+  const weekBuckets = Array.from({ length: 7 }, (_, index) => {
+    const day = new Date(weekStart);
+    day.setDate(weekStart.getDate() + index);
+
+    const shiftsForDay = shifts.filter((shift) => {
+      const shiftDate = new Date(shift.startDateTime);
+      return (
+        shift.status !== "cancelled" &&
+        shiftDate.getFullYear() === day.getFullYear() &&
+        shiftDate.getMonth() === day.getMonth() &&
+        shiftDate.getDate() === day.getDate()
+      );
+    });
+
+    const totalHours = shiftsForDay.reduce(
+      (acc, shift) => acc + shiftDurationHours(shift),
+      0,
+    );
+
+    return {
+      key: day.toDateString(),
+      day,
+      totalHours,
+      hasConflict: shiftsForDay.length > 1,
+    };
+  });
+
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const monthEnd = new Date(
+    now.getFullYear(),
+    now.getMonth() + 1,
     0,
+    23,
+    59,
+    59,
+    999,
   );
 
-  // Upcoming 7-day preview (exclude today)
-  const weekEnd = new Date(now);
-  weekEnd.setDate(weekEnd.getDate() + 7);
-  const weekShifts = shifts
-    .filter((s) => {
-      const d = new Date(s.startDateTime);
-      return d.toDateString() !== todayStr && d > now && d < weekEnd;
+  const workplaceSummary = workplaces
+    .map((workplace) => {
+      const monthlyCount = shifts.filter((shift) => {
+        const start = new Date(shift.startDateTime);
+        return (
+          shift.status !== "cancelled" &&
+          shift.workplaceId === workplace.id &&
+          start >= monthStart &&
+          start <= monthEnd
+        );
+      }).length;
+
+      return {
+        ...workplace,
+        monthlyCount,
+      };
     })
-    .sort(
-      (a, b) =>
-        new Date(a.startDateTime).getTime() -
-        new Date(b.startDateTime).getTime(),
-    );
+    .sort((a, b) => b.monthlyCount - a.monthlyCount)
+    .slice(0, 3);
 
-  const unresolvedConflicts = conflicts.filter((c) => !c.resolved);
-
-  // ── Render ──
   return (
     <AppScreen>
-      <ScrollView
-        contentContainerStyle={styles.scroll}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* ━━ Header ━━ */}
-        <FadeInView delay={0}>
-          <View style={styles.header}>
-            <View style={styles.flex1}>
-              <AppText variant="body" color={colors.textSecondary}>
-                {now.toLocaleDateString(undefined, {
-                  weekday: "long",
-                  month: "long",
-                  day: "numeric",
-                })}
-              </AppText>
-              <AppText variant="largeTitle" style={styles.appName}>
-                ShiftBuddy
-              </AppText>
+      <View style={styles.screen}>
+        <ScrollView
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
+        >
+          <View
+            style={[
+              styles.header,
+              {
+                backgroundColor: `${tokens.surface}B3`,
+              },
+            ]}
+          >
+            <View style={styles.brandRow}>
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 6,
+                }}
+              >
+                <View
+                  style={[
+                    styles.avatar,
+                    {
+                      backgroundColor: tokens.surface_container,
+                    },
+                  ]}
+                >
+                  {user?.avatarUrl ? (
+                    <Image
+                      source={{ uri: user.avatarUrl }}
+                      style={styles.avatarImage}
+                    />
+                  ) : (
+                    <AppText
+                      variant="subheading"
+                      color={tokens.primary}
+                      style={styles.brandInitial}
+                    >
+                      {user?.name?.charAt(0)?.toUpperCase() ?? "S"}
+                    </AppText>
+                  )}
+                </View>
+                <AppText
+                  variant="heading"
+                  color={tokens.primary}
+                  style={styles.brandText}
+                >
+                  ShiftBuddy
+                </AppText>
+              </View>
+              <View
+                style={[
+                  styles.quickIcon,
+                  { backgroundColor: `${tokens.primary}1A` },
+                ]}
+              >
+                <IconSymbol
+                  name="plus.circle.fill"
+                  size={22}
+                  style={{ borderRadius: 12 }}
+                  color={tokens.primary}
+                />
+              </View>
+              {/* <AppText variant="caption" color={tokens.textSecondary}> */}
+
+              {/* </AppText>
+              </View> */}
             </View>
-            {/* Avatar placeholder */}
-            <View
-              style={[
-                styles.avatar,
+
+            <Pressable
+              onPress={() => router.push("/(tabs)/settings")}
+              hitSlop={10}
+              style={({ pressed }) => [
+                styles.headerAction,
                 {
-                  backgroundColor: colors.accent + "22",
-                  borderColor: colors.accent,
+                  backgroundColor: pressed
+                    ? tokens.surface_container_high
+                    : "transparent",
                 },
               ]}
             >
-              <AppText variant="subheading" color={colors.accent}>
-                {user?.name?.charAt(0) ?? "?"}
-              </AppText>
-            </View>
+              <IconSymbol name="bell.fill" size={18} color={tokens.primary} />
+            </Pressable>
           </View>
-        </FadeInView>
 
-        {/* ━━ Next Shift Hero Card ━━ */}
-        <FadeInView delay={80}>
-          <AnimatedPress scale={0.98}>
-            <AppCard style={styles.heroCard} accentBorder={nextWp?.color}>
-              <View style={styles.heroTop}>
-                <AppText variant="overline">NEXT SHIFT</AppText>
-                {nextShift && (
-                  <AppBadge
-                    label={
-                      nextShift.status === "pending" ? "Pending" : "Confirmed"
-                    }
-                    variant={
-                      nextShift.status === "pending" ? "warning" : "success"
-                    }
-                  />
-                )}
+          <LinearGradient
+            colors={["#c5d9ff", "#adc6ff"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.heroCard}
+          >
+            <View style={styles.heroOrb} />
+
+            <View style={styles.heroTopRow}>
+              <View
+                style={[
+                  styles.heroChip,
+                  { backgroundColor: `${tokens.surface_darkest}1F` },
+                ]}
+              >
+                <AppText variant="label" color={tokens.surface_darkest}>
+                  NEXT SHIFT
+                </AppText>
               </View>
-              {nextShift ? (
-                <>
-                  <AppText variant="heading" style={styles.heroTitle}>
-                    {nextShift.title}
-                  </AppText>
-                  <View style={styles.heroMeta}>
-                    <View
-                      style={[
-                        styles.dot,
-                        { backgroundColor: nextWp?.color ?? colors.accent },
-                      ]}
-                    />
-                    <AppText variant="body" color={colors.textSecondary}>
-                      {nextWp?.name ?? "Unknown"}
-                    </AppText>
-                  </View>
-                  <View style={styles.heroTimeRow}>
+
+              <View style={styles.heroRight}>
+                <AppText
+                  variant="captionBold"
+                  color={`${tokens.surface_darkest}B3`}
+                >
+                  STARTING IN
+                </AppText>
+                <AppText variant="title" color={tokens.surface_darkest}>
+                  {nextShift ? timeUntil(nextShift.startDateTime) : "-"}
+                </AppText>
+              </View>
+            </View>
+
+            {nextShift ? (
+              <>
+                <AppText
+                  variant="title"
+                  color={tokens.surface_darkest}
+                  style={styles.heroTitle}
+                >
+                  {nextWorkplace?.name ?? "Upcoming Shift"}
+                </AppText>
+                <AppText
+                  variant="bodyBold"
+                  color={`${tokens.surface_darkest}D1`}
+                  style={styles.heroSubtitle}
+                >
+                  {nextShift.title}
+                </AppText>
+
+                <View style={styles.heroMetaWrap}>
+                  <View style={styles.heroMetaItem}>
                     <IconSymbol
                       name="clock.fill"
-                      size={16}
-                      color={colors.textSecondary}
+                      size={14}
+                      color={`${tokens.surface_darkest}A6`}
                     />
-                    <AppText variant="bodyBold" color={colors.textPrimary}>
-                      {fmtTime(nextShift.startDateTime)} –{" "}
+                    <AppText variant="bodyBold" color={tokens.surface_darkest}>
+                      {fmtTime(nextShift.startDateTime)} -{" "}
                       {fmtTime(nextShift.endDateTime)}
                     </AppText>
-                    <AppText variant="caption" color={colors.textSecondary}>
-                      ({shiftDurationHrs(nextShift)}h)
+                  </View>
+                  <View style={styles.heroMetaItem}>
+                    <IconSymbol
+                      name="mappin.and.ellipse"
+                      size={14}
+                      color={`${tokens.surface_darkest}A6`}
+                    />
+                    <AppText variant="bodyBold" color={tokens.surface_darkest}>
+                      {fmtDate(nextShift.startDateTime)}
                     </AppText>
                   </View>
-                  <AppText
-                    variant="caption"
-                    color={colors.textSecondary}
-                    style={styles.heroDate}
-                  >
-                    {fmtDate(nextShift.startDateTime)}
-                  </AppText>
-                </>
-              ) : (
-                <View style={styles.emptyState}>
-                  <AppText variant="heading" center>
-                    All clear! 🎉
-                  </AppText>
-                  <AppText variant="body" color={colors.textSecondary} center>
-                    No upcoming shifts scheduled
-                  </AppText>
                 </View>
-              )}
-            </AppCard>
-          </AnimatedPress>
-        </FadeInView>
-
-        {/* ━━ Conflict Alert ━━ */}
-        {unresolvedConflicts.length > 0 && (
-          <FadeInView delay={160}>
-            <PulseView scale={1.01} duration={2000}>
-              <Pressable onPress={() => router.push("/conflicts")}>
-                <AppCard
-                  style={[
-                    styles.conflictCard,
-                    { borderColor: colors.error + "44" },
-                  ]}
-                >
-                  <View style={styles.conflictInner}>
-                    <IconSymbol
-                      name="exclamationmark.triangle.fill"
-                      size={22}
-                      color={colors.error}
-                    />
-                    <View style={styles.flex1}>
-                      <AppText variant="bodyBold" color={colors.error}>
-                        {unresolvedConflicts.length} Shift Conflict
-                        {unresolvedConflicts.length > 1 ? "s" : ""}
-                      </AppText>
-                      <AppText variant="caption" color={colors.textSecondary}>
-                        Overlapping shifts detected — tap to review
-                      </AppText>
-                    </View>
-                    <IconSymbol
-                      name="chevron.right"
-                      size={18}
-                      color={colors.textSecondary}
-                    />
-                  </View>
-                </AppCard>
-              </Pressable>
-            </PulseView>
-          </FadeInView>
-        )}
-
-        {/* ━━ Today's Timeline ━━ */}
-        <FadeInView delay={200}>
-          <View style={styles.sectionHeader}>
-            <AppText variant="subheading">Today</AppText>
-            <AppBadge
-              label={`${todayShifts.length} shift${todayShifts.length !== 1 ? "s" : ""} · ${todayTotalHrs.toFixed(1)}h`}
-              variant="accent"
-            />
-          </View>
-
-          {todayShifts.length === 0 ? (
-            <AppCard style={styles.mb16}>
-              <AppText variant="body" color={colors.textSecondary} center>
-                No shifts today — enjoy your day off! ☀️
-              </AppText>
-            </AppCard>
-          ) : (
-            todayShifts.map((shift, idx) => {
-              const wp = workplaces.find((w) => w.id === shift.workplaceId);
-              const isPast = new Date(shift.endDateTime) < now;
-              const isNow =
-                new Date(shift.startDateTime) <= now &&
-                new Date(shift.endDateTime) >= now;
-              return (
-                <FadeInView key={shift.id} delay={240 + idx * 60}>
-                  <AppCard
-                    accentBorder={wp?.color}
-                    style={[styles.timelineCard, isPast && { opacity: 0.55 }]}
-                  >
-                    <View style={styles.timelineRow}>
-                      {/* Time column */}
-                      <View style={styles.timeCol}>
-                        <AppText variant="bodyBold">
-                          {fmtTime(shift.startDateTime)}
-                        </AppText>
-                        <AppText variant="caption" color={colors.textSecondary}>
-                          {fmtTime(shift.endDateTime)}
-                        </AppText>
-                      </View>
-                      {/* Divider */}
-                      <View style={styles.dividerCol}>
-                        <View
-                          style={[
-                            styles.timelineDot,
-                            {
-                              backgroundColor: isNow
-                                ? colors.success
-                                : (wp?.color ?? colors.accent),
-                              borderColor: isNow
-                                ? colors.success + "44"
-                                : "transparent",
-                            },
-                          ]}
-                        />
-                        {idx < todayShifts.length - 1 && (
-                          <View
-                            style={[
-                              styles.timelineLine,
-                              { backgroundColor: colors.border },
-                            ]}
-                          />
-                        )}
-                      </View>
-                      {/* Shift info */}
-                      <View style={styles.flex1}>
-                        <View style={styles.shiftInfoTop}>
-                          <AppText variant="bodyBold" style={styles.flex1}>
-                            {shift.title}
-                          </AppText>
-                          {isNow && <AppBadge label="NOW" variant="success" />}
-                          {shift.status === "pending" && (
-                            <AppBadge label="Pending" variant="warning" />
-                          )}
-                        </View>
-                        <View style={styles.shiftInfoBottom}>
-                          <View
-                            style={[
-                              styles.dot,
-                              { backgroundColor: wp?.color ?? colors.accent },
-                            ]}
-                          />
-                          <AppText
-                            variant="caption"
-                            color={colors.textSecondary}
-                          >
-                            {wp?.name ?? "Unknown"} · {shiftDurationHrs(shift)}h
-                          </AppText>
-                        </View>
-                      </View>
-                    </View>
-                  </AppCard>
-                </FadeInView>
-              );
-            })
-          )}
-        </FadeInView>
-
-        {/* ━━ Upcoming Week Preview ━━ */}
-        {weekShifts.length > 0 && (
-          <FadeInView delay={350}>
-            <View style={styles.sectionHeader}>
-              <AppText variant="subheading">Upcoming Week</AppText>
-              <AppBadge
-                label={`${weekShifts.length} shifts`}
-                variant="accent"
-              />
-            </View>
-            {weekShifts.slice(0, 5).map((shift) => {
-              const wp = workplaces.find((w) => w.id === shift.workplaceId);
-              return (
-                <AppCard
-                  key={shift.id}
-                  accentBorder={wp?.color}
-                  style={styles.weekCard}
-                  padding={14}
-                >
-                  <View style={styles.weekRow}>
-                    <View style={styles.weekDateCol}>
-                      <AppText variant="captionBold" color={colors.accent}>
-                        {new Date(shift.startDateTime).toLocaleDateString(
-                          undefined,
-                          {
-                            weekday: "short",
-                          },
-                        )}
-                      </AppText>
-                      <AppText variant="bodyBold">
-                        {new Date(shift.startDateTime).getDate()}
-                      </AppText>
-                    </View>
-                    <View style={styles.flex1}>
-                      <AppText variant="bodyBold">{shift.title}</AppText>
-                      <View style={styles.weekMeta}>
-                        <View
-                          style={[
-                            styles.dotSm,
-                            { backgroundColor: wp?.color ?? colors.accent },
-                          ]}
-                        />
-                        <AppText variant="caption" color={colors.textSecondary}>
-                          {wp?.name} · {fmtTime(shift.startDateTime)} –{" "}
-                          {fmtTime(shift.endDateTime)}
-                        </AppText>
-                      </View>
-                    </View>
-                    {shift.status === "pending" && (
-                      <AppBadge label="Pending" variant="warning" />
-                    )}
-                  </View>
-                </AppCard>
-              );
-            })}
-            {weekShifts.length > 5 && (
-              <AppText
-                variant="captionBold"
-                color={colors.accent}
-                center
-                style={styles.mb16}
-              >
-                +{weekShifts.length - 5} more shifts this week
-              </AppText>
+              </>
+            ) : (
+              <View style={styles.heroEmpty}>
+                <AppText variant="heading" color={tokens.surface_darkest}>
+                  All clear
+                </AppText>
+                <AppText variant="body" color={`${tokens.surface_darkest}BF`}>
+                  No upcoming shifts right now
+                </AppText>
+              </View>
             )}
-          </FadeInView>
-        )}
+          </LinearGradient>
 
-        {/* ━━ Quick Actions ━━ */}
-        <FadeInView delay={420}>
-          <AppText variant="subheading" style={styles.sectionTitle}>
-            Quick Actions
-          </AppText>
-          <View style={styles.actionsRow}>
+          <View style={styles.quickActionGrid}>
             <Pressable
               onPress={() => router.push("/add-shift")}
               style={({ pressed }) => [
-                styles.actionCard,
+                styles.quickCard,
                 {
-                  backgroundColor: colors.accent + "14",
-                  borderColor: colors.accent + "33",
-                  opacity: pressed ? 0.75 : 1,
+                  borderRadius: 12,
+                  backgroundColor: pressed
+                    ? tokens.surface_container_high
+                    : tokens.surface_container,
+                  borderColor: `${tokens.outline_variant}26`,
                 },
               ]}
             >
-              <IconSymbol
-                name="plus.circle.fill"
-                size={28}
-                color={colors.accent}
-              />
-              <AppText variant="captionBold" color={colors.accent}>
-                Add Shift
+              <View
+                style={[
+                  styles.quickIcon,
+                  { backgroundColor: `${tokens.primary}1A` },
+                ]}
+              >
+                <IconSymbol
+                  name="plus.circle.fill"
+                  size={22}
+                  style={{ borderRadius: 12 }}
+                  color={tokens.primary}
+                />
+              </View>
+              <AppText variant="label" color={tokens.textSecondary}>
+                ADD SHIFT
               </AppText>
             </Pressable>
+
             <Pressable
               onPress={() => router.push("/upload-shift")}
               style={({ pressed }) => [
-                styles.actionCard,
+                styles.quickCard,
                 {
-                  backgroundColor: colors.success + "14",
-                  borderColor: colors.success + "33",
-                  opacity: pressed ? 0.75 : 1,
+                  backgroundColor: pressed
+                    ? tokens.surface_container_high
+                    : tokens.surface_container,
+                  borderColor: `${tokens.outline_variant}26`,
                 },
               ]}
             >
-              <IconSymbol name="camera.fill" size={28} color={colors.success} />
-              <AppText variant="captionBold" color={colors.success}>
-                Upload
-              </AppText>
-            </Pressable>
-            <Pressable
-              onPress={() => router.push("/conflicts")}
-              style={({ pressed }) => [
-                styles.actionCard,
-                {
-                  backgroundColor: colors.warning + "14",
-                  borderColor: colors.warning + "33",
-                  opacity: pressed ? 0.75 : 1,
-                },
-              ]}
-            >
-              <IconSymbol
-                name="arrow.triangle.2.circlepath"
-                size={28}
-                color={colors.warning}
-              />
-              <AppText variant="captionBold" color={colors.warning}>
-                Conflicts
-              </AppText>
-            </Pressable>
-          </View>
-        </FadeInView>
-
-        {/* ━━ Stats Row ━━ */}
-        <FadeInView delay={500}>
-          <View style={styles.statsRow}>
-            <AppCard style={styles.statCard} padding={14}>
-              <AppText variant="title" color={colors.accent} center>
-                {workplaces.length}
-              </AppText>
-              <AppText variant="label" center>
-                Jobs
-              </AppText>
-            </AppCard>
-
-            <AppCard style={styles.statCard} padding={14}>
-              <AppText
-                variant="title"
-                color={
-                  unresolvedConflicts.length > 0
-                    ? colors.warning
-                    : colors.success
-                }
-                center
+              <View
+                style={[
+                  styles.quickIcon,
+                  { backgroundColor: `${tokens.tertiary}1A` },
+                ]}
               >
-                {unresolvedConflicts.length}
+                <IconSymbol
+                  name="camera.fill"
+                  size={22}
+                  color={tokens.tertiary}
+                />
+              </View>
+              <AppText variant="label" color={tokens.textSecondary}>
+                UPLOAD
               </AppText>
-              <AppText variant="label" center>
-                Conflicts
-              </AppText>
-            </AppCard>
-
-            <AppCard style={styles.statCard} padding={14}>
-              <AppText variant="title" color={colors.success} center>
-                {upcoming.length}
-              </AppText>
-              <AppText variant="label" center>
-                Upcoming
-              </AppText>
-            </AppCard>
+            </Pressable>
           </View>
-        </FadeInView>
 
-        {/* Bottom spacer for tab bar */}
-        <View style={styles.bottomSpacer} />
-      </ScrollView>
+          <View style={styles.sectionGroup}>
+            <View style={styles.sectionHeaderLeft}>
+              <IconSymbol
+                name="exclamationmark.triangle.fill"
+                size={17}
+                color={tokens.tertiary}
+              />
+              <AppText variant="subheading" color={tokens.tertiary}>
+                Conflict Detected
+              </AppText>
+            </View>
+
+            <View
+              style={[
+                styles.conflictCard,
+                {
+                  backgroundColor: tokens.surface_container_low,
+                  borderLeftColor: tokens.tertiary,
+                },
+              ]}
+            >
+              <View
+                style={[
+                  styles.conflictGlow,
+                  { backgroundColor: `${tokens.tertiary}14` },
+                ]}
+              />
+
+              {topConflict && conflictShiftA && conflictShiftB ? (
+                <>
+                  <AppText
+                    variant="body"
+                    color={tokens.textSecondary}
+                    style={styles.conflictIntro}
+                  >
+                    You have two overlapping assignments on{" "}
+                    {fmtDate(conflictShiftA.startDateTime)}.
+                  </AppText>
+
+                  <View style={styles.conflictRows}>
+                    <View
+                      style={[
+                        styles.conflictRow,
+                        {
+                          backgroundColor: tokens.surface_container,
+                        },
+                      ]}
+                    >
+                      <View>
+                        <AppText variant="captionBold" color={tokens.primary}>
+                          {conflictWorkplaceA?.name ?? "Workplace"}
+                        </AppText>
+                        <AppText variant="bodyBold" color={tokens.textPrimary}>
+                          {conflictShiftA.title}
+                        </AppText>
+                      </View>
+                      <AppText variant="caption" color={tokens.textSecondary}>
+                        {fmtTime(conflictShiftA.startDateTime)} -{" "}
+                        {fmtTime(conflictShiftA.endDateTime)}
+                      </AppText>
+                    </View>
+
+                    <View
+                      style={[
+                        styles.conflictRow,
+                        {
+                          backgroundColor: tokens.surface_container,
+                        },
+                      ]}
+                    >
+                      <View>
+                        <AppText variant="captionBold" color={tokens.tertiary}>
+                          {conflictWorkplaceB?.name ?? "Workplace"}
+                        </AppText>
+                        <AppText variant="bodyBold" color={tokens.textPrimary}>
+                          {conflictShiftB.title}
+                        </AppText>
+                      </View>
+                      <AppText variant="caption" color={tokens.textSecondary}>
+                        {fmtTime(conflictShiftB.startDateTime)} -{" "}
+                        {fmtTime(conflictShiftB.endDateTime)}
+                      </AppText>
+                    </View>
+                  </View>
+                </>
+              ) : (
+                <AppText
+                  variant="body"
+                  color={tokens.textSecondary}
+                  style={styles.conflictIntro}
+                >
+                  No overlapping assignments right now.
+                </AppText>
+              )}
+
+              <Pressable
+                onPress={() => router.push("/conflicts")}
+                style={({ pressed }) => [
+                  styles.resolveButton,
+                  {
+                    backgroundColor: tokens.surface_container_highest,
+                    opacity: pressed ? 0.85 : 1,
+                  },
+                ]}
+              >
+                <AppText
+                  variant="bodyBold"
+                  color={topConflict ? tokens.tertiary : tokens.textSecondary}
+                  center
+                  style={topConflict ? undefined : styles.resolveTextMuted}
+                >
+                  Resolve Scheduling
+                </AppText>
+              </Pressable>
+            </View>
+          </View>
+
+          <View style={styles.sectionGroup}>
+            <View style={styles.scheduleHeader}>
+              <AppText variant="subheading" color={tokens.textPrimary}>
+                Today&apos;s Schedule
+              </AppText>
+              <AppText variant="label" color={tokens.outline}>
+                {now.toLocaleDateString(undefined, {
+                  month: "short",
+                  day: "numeric",
+                  year: "numeric",
+                })}
+              </AppText>
+            </View>
+
+            {todayShifts.length === 0 ? (
+              <View
+                style={[
+                  styles.emptyCard,
+                  {
+                    backgroundColor: tokens.surface_container_low,
+                  },
+                ]}
+              >
+                <AppText variant="body" color={tokens.textSecondary} center>
+                  No shifts scheduled for today
+                </AppText>
+              </View>
+            ) : (
+              todayShifts.map((shift) => {
+                const workplace = workplaces.find(
+                  (item) => item.id === shift.workplaceId,
+                );
+
+                const ended =
+                  new Date(shift.endDateTime).getTime() < now.getTime();
+                const ongoing =
+                  new Date(shift.startDateTime).getTime() <= now.getTime() &&
+                  new Date(shift.endDateTime).getTime() >= now.getTime();
+
+                const cardStyle: ViewStyle = {
+                  backgroundColor: ongoing
+                    ? tokens.surface_container
+                    : tokens.surface_container_low,
+                };
+
+                return (
+                  <View key={shift.id} style={[styles.scheduleCard, cardStyle]}>
+                    <View style={styles.scheduleRow}>
+                      <View style={styles.scheduleLeft}>
+                        <View
+                          style={[
+                            styles.scheduleMarker,
+                            {
+                              backgroundColor:
+                                workplace?.color ?? tokens.primary,
+                              opacity: ended ? 0.45 : 1,
+                            },
+                          ]}
+                        />
+                        <View>
+                          <AppText
+                            variant="bodyBold"
+                            color={tokens.textPrimary}
+                          >
+                            {workplace?.name ?? "Workplace"}
+                          </AppText>
+                          <AppText
+                            variant="caption"
+                            color={tokens.textSecondary}
+                          >
+                            {shift.title}
+                          </AppText>
+                        </View>
+                      </View>
+
+                      <View style={styles.scheduleRight}>
+                        <AppText
+                          variant="bodyBold"
+                          color={ongoing ? tokens.primary : tokens.textPrimary}
+                        >
+                          {fmtTime(shift.startDateTime)} -{" "}
+                          {fmtTime(shift.endDateTime)}
+                        </AppText>
+                        <AppBadge
+                          label={
+                            ongoing
+                              ? "UPCOMING"
+                              : ended
+                                ? "COMPLETED"
+                                : shift.status.toUpperCase()
+                          }
+                          variant={
+                            ongoing ? "accent" : ended ? "default" : "warning"
+                          }
+                        />
+                      </View>
+                    </View>
+                  </View>
+                );
+              })
+            )}
+          </View>
+
+          <View style={styles.sectionGroup}>
+            <AppText
+              variant="subheading"
+              color={tokens.textPrimary}
+              style={styles.sectionTitleSpacing}
+            >
+              This Week
+            </AppText>
+
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.weekScroll}
+            >
+              {weekBuckets.map((bucket) => {
+                const isToday = bucket.key === todayKey;
+                return (
+                  <View
+                    key={bucket.key}
+                    style={[
+                      styles.weekCard,
+                      {
+                        backgroundColor: isToday
+                          ? `${tokens.primary_container}29`
+                          : tokens.surface_container_low,
+                      },
+                    ]}
+                  >
+                    <AppText
+                      variant="label"
+                      color={isToday ? tokens.primary : tokens.textSecondary}
+                    >
+                      {bucket.day.toLocaleDateString(undefined, {
+                        weekday: "short",
+                        day: "numeric",
+                      })}
+                    </AppText>
+
+                    <View
+                      style={[
+                        styles.weekBar,
+                        {
+                          backgroundColor: bucket.hasConflict
+                            ? `${tokens.tertiary}99`
+                            : isToday
+                              ? tokens.primary
+                              : `${tokens.primary}4D`,
+                        },
+                      ]}
+                    />
+
+                    <AppText
+                      variant="heading"
+                      color={isToday ? tokens.primary : tokens.textPrimary}
+                    >
+                      {bucket.totalHours.toFixed(0)}h
+                    </AppText>
+                  </View>
+                );
+              })}
+            </ScrollView>
+          </View>
+
+          <View style={styles.sectionGroup}>
+            <View style={styles.sectionHeaderInline}>
+              <AppText variant="subheading" color={tokens.textPrimary}>
+                Workplaces
+              </AppText>
+              <Pressable onPress={() => router.push("/(tabs)/workplaces")}>
+                <AppText variant="captionBold" color={tokens.primary}>
+                  Manage
+                </AppText>
+              </Pressable>
+            </View>
+
+            {workplaceSummary.length === 0 ? (
+              <View
+                style={[
+                  styles.emptyCard,
+                  {
+                    backgroundColor: tokens.surface_container_low,
+                  },
+                ]}
+              >
+                <AppText variant="body" color={tokens.textSecondary} center>
+                  Add your first workplace to start tracking
+                </AppText>
+              </View>
+            ) : (
+              workplaceSummary.map((workplace) => (
+                <Pressable
+                  key={workplace.id}
+                  onPress={() => router.push("/(tabs)/workplaces")}
+                  style={({ pressed }) => [
+                    styles.workplaceCard,
+                    {
+                      backgroundColor: pressed
+                        ? tokens.surface_container
+                        : tokens.surface_container_low,
+                    },
+                  ]}
+                >
+                  <View style={styles.workplaceLeft}>
+                    <View
+                      style={[
+                        styles.workplaceDot,
+                        {
+                          backgroundColor: workplace.color || tokens.primary,
+                        },
+                      ]}
+                    />
+                    <AppText variant="bodyBold" color={tokens.textPrimary}>
+                      {workplace.name}
+                    </AppText>
+                  </View>
+
+                  <AppText variant="captionBold" color={tokens.textSecondary}>
+                    {workplace.monthlyCount} shifts/mo
+                  </AppText>
+                </Pressable>
+              ))
+            )}
+          </View>
+
+          <View style={styles.bottomSpace} />
+        </ScrollView>
+
+        <Pressable
+          onPress={() => router.push("/add-shift")}
+          style={({ pressed }) => [
+            styles.fab,
+            {
+              opacity: pressed ? 0.85 : 1,
+            },
+          ]}
+        >
+          <LinearGradient
+            colors={["#c5d9ff", "#adc6ff"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.fabGradient}
+          >
+            <IconSymbol name="plus" size={30} color={tokens.surface_darkest} />
+          </LinearGradient>
+        </Pressable>
+      </View>
     </AppScreen>
   );
 }
 
-// ─── Styles ─────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  scroll: { paddingHorizontal: 20, paddingTop: 12 },
-
-  // Header
+  screen: {
+    flex: 1,
+  },
+  content: {
+    paddingHorizontal: 24,
+    paddingTop: 10,
+    paddingBottom: 150,
+    gap: 20,
+  },
   header: {
+    minHeight: 64,
+    borderRadius: 20,
+    paddingHorizontal: 14,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 20,
   },
-  appName: { marginTop: 2 },
+  brandRow: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
   avatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    borderWidth: 2,
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    overflow: "hidden",
     alignItems: "center",
     justifyContent: "center",
   },
-
-  // Hero
-  heroCard: { marginBottom: 16 },
-  heroTop: {
+  avatarImage: {
+    width: "100%",
+    height: "100%",
+  },
+  brandInitial: {
+    fontWeight: "800",
+  },
+  brandText: {
+    fontWeight: "800",
+    letterSpacing: -0.2,
+  },
+  headerAction: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  heroCard: {
+    borderRadius: 26,
+    padding: 22,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 24 },
+    shadowOpacity: 0.4,
+    shadowRadius: 48,
+    elevation: 16,
+  },
+  heroOrb: {
+    position: "absolute",
+    right: -40,
+    top: -36,
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    backgroundColor: "rgba(255, 255, 255, 0.15)",
+  },
+  heroTopRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 10,
+    alignItems: "flex-start",
+    marginBottom: 18,
   },
-  heroTitle: { marginBottom: 6 },
-  heroMeta: {
+  heroChip: {
+    borderRadius: 999,
+    paddingHorizontal: 13,
+    paddingVertical: 6,
+  },
+  heroRight: {
+    alignItems: "flex-end",
+    gap: 2,
+  },
+  heroTitle: {
+    marginBottom: 2,
+  },
+  heroSubtitle: {
+    marginBottom: 16,
+  },
+  heroMetaWrap: {
+    gap: 8,
+  },
+  heroMetaItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+  },
+  heroEmpty: {
+    gap: 6,
+    paddingVertical: 6,
+  },
+  quickActionGrid: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  quickCard: {
+    flex: 1,
+    borderRadius: 20,
+    borderWidth: 1,
+    minHeight: 106,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+  },
+  quickIcon: {
+    width: 46,
+    height: 46,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  sectionGroup: {
+    gap: 12,
+  },
+  sectionHeaderLeft: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    marginBottom: 8,
+    paddingHorizontal: 2,
   },
-  heroTimeRow: { flexDirection: "row", alignItems: "center", gap: 6 },
-  heroDate: { marginTop: 6 },
-
-  emptyState: { paddingVertical: 20, gap: 4 },
-
-  // Conflicts
   conflictCard: {
-    marginBottom: 16,
-    borderWidth: 1,
+    borderRadius: 24,
+    padding: 18,
+    borderLeftWidth: 4,
+    overflow: "hidden",
   },
-  conflictInner: {
+  conflictGlow: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  conflictIntro: {
+    marginBottom: 10,
+  },
+  conflictRows: {
+    gap: 8,
+  },
+  conflictRow: {
+    borderRadius: 14,
+    padding: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+  },
+  resolveButton: {
+    marginTop: 14,
+    borderRadius: 999,
+    minHeight: 46,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 12,
+  },
+  resolveTextMuted: {
+    opacity: 0.9,
+  },
+  scheduleHeader: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    justifyContent: "space-between",
+    paddingHorizontal: 2,
+  },
+  emptyCard: {
+    borderRadius: 18,
+    minHeight: 74,
+    justifyContent: "center",
+    paddingHorizontal: 16,
+  },
+  scheduleCard: {
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+  },
+  scheduleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+  scheduleLeft: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-  },
-
-  // Section headers
-  sectionHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 12,
-    marginTop: 4,
-  },
-  sectionTitle: { marginBottom: 12, marginTop: 4 },
-
-  // Timeline
-  timelineCard: { marginBottom: 10 },
-  timelineRow: { flexDirection: "row", gap: 12 },
-  timeCol: { width: 52, alignItems: "flex-end" },
-  dividerCol: { alignItems: "center", width: 20 },
-  timelineDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    borderWidth: 2,
-    marginTop: 3,
-  },
-  timelineLine: {
-    width: 2,
     flex: 1,
-    marginTop: 4,
-    borderRadius: 1,
   },
-  shiftInfoTop: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    marginBottom: 4,
+  scheduleRight: {
+    alignItems: "flex-end",
+    gap: 4,
   },
-  shiftInfoBottom: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
+  scheduleMarker: {
+    width: 5,
+    height: 36,
+    borderRadius: 4,
   },
-
-  // Week preview
-  weekCard: { marginBottom: 8 },
-  weekRow: { flexDirection: "row", alignItems: "center", gap: 14 },
-  weekDateCol: { alignItems: "center", width: 38 },
-  weekMeta: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    marginTop: 2,
+  sectionTitleSpacing: {
+    paddingHorizontal: 2,
   },
-
-  // Quick actions
-  actionsRow: {
-    flexDirection: "row",
+  weekScroll: {
     gap: 10,
-    marginBottom: 20,
+    paddingBottom: 4,
   },
-  actionCard: {
-    flex: 1,
+  weekCard: {
+    minWidth: 114,
+    borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    paddingVertical: 18,
-    borderRadius: 16,
-    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 14,
   },
-
-  // Stats
-  statsRow: { flexDirection: "row", gap: 10, marginBottom: 16 },
-  statCard: { flex: 1, alignItems: "center" },
-
-  // Shared
-  flex1: { flex: 1 },
-  dot: { width: 8, height: 8, borderRadius: 4 },
-  dotSm: { width: 6, height: 6, borderRadius: 3 },
-  mb16: { marginBottom: 16 },
-  bottomSpacer: { height: 100 },
+  weekBar: {
+    width: 40,
+    height: 4,
+    borderRadius: 3,
+  },
+  sectionHeaderInline: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 2,
+  },
+  workplaceCard: {
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    minHeight: 56,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  workplaceLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  workplaceDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  bottomSpace: {
+    height: 8,
+  },
+  fab: {
+    position: "absolute",
+    right: 24,
+    bottom: 94,
+    borderRadius: 12,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOpacity: 0.36,
+    shadowOffset: { width: 0, height: 16 },
+    shadowRadius: 24,
+    elevation: 10,
+  },
+  fabGradient: {
+    width: 56,
+    height: 56,
+    alignItems: "center",
+    justifyContent: "center",
+  },
 });
