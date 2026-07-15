@@ -86,6 +86,7 @@ export default function AddShiftScreen() {
       status,
       createdAt: now,
       updatedAt: now,
+      associationType: "workplace",
     };
 
     addShift(shift);
@@ -101,7 +102,7 @@ export default function AddShiftScreen() {
   ];
 
   return (
-    <AppScreen safeTop>
+    <AppScreen>
       <ScrollView
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
@@ -252,7 +253,7 @@ export default function AddShiftScreen() {
 
         {/* ── Duration & Pay Preview ── */}
         {duration > 0 && (
-          <AppCard style={styles.previewCard} padding={14}>
+          <AppCard style={styles.previewCard} p-14>
             <View style={styles.previewRow}>
               <View style={styles.previewItem}>
                 <IconSymbol name="clock.fill" size={16} color={colors.accent} />
