@@ -1,15 +1,15 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import React, { useEffect, useMemo, useRef } from "react";
 import {
-    Animated,
-    Dimensions,
-    Easing,
-    SafeAreaView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    View,
+  Animated,
+  Dimensions,
+  Easing,
+  StatusBar,
+  StyleSheet,
+  Text,
+  View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 const { width, height } = Dimensions.get("window");
 
