@@ -1,7 +1,7 @@
 import {
-    DarkTheme,
-    DefaultTheme,
-    ThemeProvider,
+  DarkTheme,
+  DefaultTheme,
+  ThemeProvider,
 } from "@react-navigation/native";
 import { router, Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
@@ -9,7 +9,8 @@ import { Platform } from "react-native";
 import "react-native-reanimated";
 
 import { useShiftStore, useThemeStore } from "@/store";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import SplashScreen from "./SplashScreen";
 
 export const unstable_settings = {
   anchor: "(tabs)",
@@ -20,33 +21,49 @@ export default function RootLayout() {
   const hydrateShifts = useShiftStore((s) => s.hydrate);
   const shiftsHydrated = useShiftStore((s) => s.hydrated);
   const storeUser = useShiftStore((s) => s.user);
+  const [splashComplete, setSplashComplete] = useState(false);
 
   useEffect(() => {
     hydrateShifts();
   }, [hydrateShifts]);
 
-  // ── Onboarding gate ────────────────────────────────────────────
-  // After hydration, redirect to profile-setup if user hasn't set their name
+  // ── Get theme early (before any conditional returns) ────────────
+  const blurTint = useThemeStore((s) => s.theme.tokens.blurTint);
+  const tokens = useThemeStore((s) => s.theme.tokens);
+
+  // ── Splash screen gate: Show for minimum duration ────────────────
   useEffect(() => {
     if (!shiftsHydrated) return;
+
+    // Show splash for at least 1.2 seconds for visual effect
+    const splashTimer = setTimeout(() => {
+      setSplashComplete(true);
+    }, 1200);
+
+    return () => clearTimeout(splashTimer);
+  }, [shiftsHydrated]);
+
+  // ── Onboarding gate ────────────────────────────────────────────
+  // After splash and hydration, redirect to profile-setup if user hasn't set their name
+  useEffect(() => {
+    if (!splashComplete) return;
     if (!storeUser || !storeUser.name.trim()) {
       router.replace("/profile-setup");
     }
-  }, [shiftsHydrated, storeUser]);
+  }, [splashComplete, storeUser]);
 
-  const blurTint = useThemeStore((s) => s.theme.tokens.blurTint);
-
-  // Build a React Navigation theme from our tokens so header/background colors stay in sync
-  const tokens = useThemeStore((s) => s.theme.tokens);
+  // ── Show splash screen during initial load ─────────────────────
+  if (!splashComplete) {
+    return <SplashScreen />;
+  }
   const navTheme = {
     ...(blurTint === "dark" ? DarkTheme : DefaultTheme),
     colors: {
       ...(blurTint === "dark" ? DarkTheme : DefaultTheme).colors,
-      background: tokens.background,
-      card: tokens.surface,
-      text: tokens.textPrimary,
-      border: tokens.border,
-      primary: tokens.accent,
+      background: tokens.background || "#10131a",
+      card: tokens.surface || "#10131a",
+      text: tokens.textPrimary || "#e1e2eb",
+      primary: tokens.accent || "#adc6ff",
     },
   };
 
