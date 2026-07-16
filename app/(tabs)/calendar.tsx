@@ -679,7 +679,7 @@ export default function CalendarScreen() {
 
           if (totalShifts === 0) return null;
           return (
-            <AppCard style={styles.weekSummary} padding={16}>
+            <AppCard style={styles.weekSummary} p-16>
               <AppText variant="overline" style={styles.weekSumLabel}>
                 {viewMode === "week" ? "THIS WEEK" : "THIS MONTH"}
               </AppText>
