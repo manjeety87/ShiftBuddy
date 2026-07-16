@@ -1,6 +1,6 @@
 import * as ImagePicker from "expo-image-picker";
 import { router } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -8,6 +8,7 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  TextInput,
   View,
 } from "react-native";
 
@@ -41,6 +42,39 @@ export default function UploadShiftScreen() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [workplaceId, setWorkplaceId] = useState(workplaces[0]?.id ?? "");
   const [adding, setAdding] = useState(false);
+  const [scanCompleted, setScanCompleted] = useState(false);
+  const [needsReview, setNeedsReview] = useState(false);
+  const [assumedPersonal, setAssumedPersonal] = useState(false);
+  const [associationType, setAssociationType] = useState<
+    "workplace" | "temporary" | "unassigned"
+  >(workplaces.length > 0 ? "workplace" : "unassigned");
+
+  const [temporaryWorkplaceName, setTemporaryWorkplaceName] = useState("");
+  const [detectedShiftCount, setDetectedShiftCount] = useState(0);
+
+  useEffect(() => {
+    /*
+     * Do not automatically select a workplace when the user has chosen
+     * Temporary or Unassigned.
+     */
+    if (associationType !== "workplace") {
+      return;
+    }
+
+    if (workplaces.length === 0) {
+      setWorkplaceId("");
+      setAssociationType("unassigned");
+      return;
+    }
+
+    const selectedStillExists = workplaces.some(
+      (workplace) => workplace.id === workplaceId,
+    );
+
+    if (!workplaceId || !selectedStillExists) {
+      setWorkplaceId(workplaces[0].id);
+    }
+  }, [workplaces, workplaceId, associationType]);
 
   // ── Pick Image ──
   const pickImage = async () => {
@@ -61,10 +95,7 @@ export default function UploadShiftScreen() {
 
     if (!result.canceled && result.assets[0]) {
       setImageUri(result.assets[0].uri);
-      setParsedShifts([]);
-      setRawText("");
-      setNameFound(null);
-      setSelectedIds(new Set());
+      resetScanResult();
     }
   };
 
@@ -86,46 +117,106 @@ export default function UploadShiftScreen() {
 
     if (!result.canceled && result.assets[0]) {
       setImageUri(result.assets[0].uri);
-      setParsedShifts([]);
-      setRawText("");
-      setNameFound(null);
-      setSelectedIds(new Set());
+      resetScanResult();
     }
+  };
+
+  const resetScanResult = () => {
+    setParsedShifts([]);
+    setRawText("");
+    setNameFound(null);
+    setSelectedIds(new Set());
+    setScanCompleted(false);
+    setNeedsReview(false);
+    setAssumedPersonal(false);
+    setDetectedShiftCount(0);
   };
 
   // ── Process with OCR ──
   const processImage = async () => {
-    if (!imageUri) return;
-    if (!scanName.trim()) {
+    if (!imageUri) {
       Alert.alert(
-        "Name Missing",
-        "Please set your name in Settings before scanning the schedule.",
+        "Image Required",
+        "Take a photo or select a schedule image first.",
       );
       return;
     }
 
     setProcessing(true);
+
     try {
-      const result = await ocrService.parseScheduleImage(imageUri, scanName);
+      /*
+       * Scan first.
+       * Workplace assignment will happen only after shifts are detected.
+       */
+      const result = await ocrService.parseScheduleImage(
+        imageUri,
+        scanName.trim(),
+        {
+          scheduleMode: "auto",
+          workplaceName: "",
+          aliases: [],
+        },
+      );
+
+      console.log("OCR result:", result);
+
       setRawText(result.rawText);
       setNameFound(result.userNameFound);
+      setScanCompleted(true);
 
-      if (result.shifts.length > 0) {
-        const shifts = ocrService.toShiftObjects(result.shifts, workplaceId);
-        setParsedShifts(shifts);
-        setSelectedIds(new Set(shifts.map((s) => s.id)));
-      } else {
+      setDetectedShiftCount(
+        Array.isArray(result.shifts) ? result.shifts.length : 0,
+      );
+
+      setNeedsReview(result.needsReview ?? false);
+      setAssumedPersonal(result.assumedPersonalSchedule ?? false);
+
+      const extractedShifts = Array.isArray(result.shifts) ? result.shifts : [];
+
+      console.log("Backend extracted shift count:", extractedShifts.length);
+
+      if (extractedShifts.length === 0) {
         setParsedShifts([]);
+        setSelectedIds(new Set());
+        return;
       }
-    } catch (err: unknown) {
-      console.log("Error", err instanceof Error ? err.message : err);
 
-      const msg =
-        err instanceof Error ? err.message : "Failed to process image.";
+      const convertedShifts = ocrService.toShiftObjects(extractedShifts, {
+        workplaceId: null,
+        associationType: "unassigned",
+      });
+
+      console.log("Converted app shifts:", convertedShifts);
+
+      if (convertedShifts.length === 0) {
+        throw new Error(
+          "The schedule was read successfully, but the detected shift could not be converted. Check the start and end date-time values.",
+        );
+      }
+
+      setParsedShifts(convertedShifts);
+      setSelectedIds(new Set(convertedShifts.map((shift) => shift.id)));
+
+      /*
+       * Suggested initial selection after scan:
+       * - If saved workplaces exist, do not force one.
+       * - Default remains Unassigned until the user chooses.
+       */
+      setAssociationType("unassigned");
+      setWorkplaceId("");
+      setTemporaryWorkplaceName("");
+    } catch (error: unknown) {
+      console.error("OCR processing error:", error);
+
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Failed to process the schedule image.";
+
       Alert.alert(
         "OCR Error",
-        msg +
-          "\n\nTip: Make sure the image is clear and your name is set in Settings.",
+        `${message}\n\nTry again in a moment or use a clearer schedule image.`,
       );
     } finally {
       setProcessing(false);
@@ -144,8 +235,10 @@ export default function UploadShiftScreen() {
 
   // ── Add selected shifts ──
   const addSelectedShifts = () => {
-    if (adding) return; // prevent double-tap
-    const toAdd = parsedShifts.filter((s) => selectedIds.has(s.id));
+    if (adding) return;
+
+    const toAdd = parsedShifts.filter((shift) => selectedIds.has(shift.id));
+
     if (toAdd.length === 0) {
       Alert.alert(
         "No Shifts Selected",
@@ -154,16 +247,62 @@ export default function UploadShiftScreen() {
       return;
     }
 
-    setAdding(true);
-    for (const shift of toAdd) {
-      addShift(shift);
+    const selectedWorkplace = workplaces.find(
+      (workplace) => workplace.id === workplaceId,
+    );
+
+    const assignmentLabel =
+      associationType === "workplace"
+        ? (selectedWorkplace?.name ?? "Selected workplace")
+        : associationType === "temporary"
+          ? temporaryWorkplaceName.trim() || "Temporary shift"
+          : "Unassigned";
+
+    const saveSelectedShifts = () => {
+      setAdding(true);
+
+      for (const shift of toAdd) {
+        addShift(shift);
+      }
+
+      Alert.alert(
+        "Shifts Added",
+        `${toAdd.length} shift${
+          toAdd.length !== 1 ? "s" : ""
+        } added under ${assignmentLabel}.`,
+        [
+          {
+            text: "OK",
+            onPress: () => router.back(),
+          },
+        ],
+      );
+    };
+
+    const requiresConfirmation =
+      needsReview || associationType === "unassigned";
+
+    if (requiresConfirmation) {
+      const message =
+        associationType === "unassigned"
+          ? "No workplace is assigned. These shifts will be saved as Unassigned and can be edited later."
+          : `The employee name may not be visible. Confirm that the detected shifts belong under ${assignmentLabel}.`;
+
+      Alert.alert("Confirm Shifts", message, [
+        {
+          text: "Review Again",
+          style: "cancel",
+        },
+        {
+          text: "Save Shifts",
+          onPress: saveSelectedShifts,
+        },
+      ]);
+
+      return;
     }
 
-    Alert.alert(
-      "Shifts Added!",
-      `${toAdd.length} shift${toAdd.length > 1 ? "s" : ""} added from your schedule.`,
-      [{ text: "OK", onPress: () => router.back() }],
-    );
+    saveSelectedShifts();
   };
 
   // ── Time formatting ──
@@ -187,8 +326,22 @@ export default function UploadShiftScreen() {
 
   const selectedWp = workplaces.find((w) => w.id === workplaceId);
 
+  const currentAssignmentLabel =
+    associationType === "workplace"
+      ? (selectedWp?.name ?? "Saved Workplace")
+      : associationType === "temporary"
+        ? temporaryWorkplaceName.trim() || "Temporary Shift"
+        : "Unassigned";
+
+  const currentAssignmentColor =
+    associationType === "workplace"
+      ? (selectedWp?.color ?? colors.accent)
+      : associationType === "temporary"
+        ? colors.warning
+        : colors.textSecondary;
+
   return (
-    <AppScreen safeTop>
+    <AppScreen>
       <ScrollView
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
@@ -289,49 +442,9 @@ export default function UploadShiftScreen() {
         </FadeInView>
 
         {/* ── Workplace Picker ── */}
-        {imageUri && parsedShifts.length === 0 && !processing && (
-          <FadeInView delay={100}>
-            <AppText variant="subheading" style={styles.sectionTitle}>
-              Assign to Workplace
-            </AppText>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              style={styles.wpScroll}
-            >
-              {workplaces.map((wp) => (
-                <Pressable
-                  key={wp.id}
-                  onPress={() => setWorkplaceId(wp.id)}
-                  style={[
-                    styles.wpChip,
-                    {
-                      backgroundColor:
-                        workplaceId === wp.id
-                          ? wp.color + "22"
-                          : colors.surface,
-                      borderColor:
-                        workplaceId === wp.id ? wp.color : colors.border,
-                    },
-                  ]}
-                >
-                  <View style={[styles.wpDot, { backgroundColor: wp.color }]} />
-                  <AppText
-                    variant="captionBold"
-                    color={
-                      workplaceId === wp.id ? wp.color : colors.textSecondary
-                    }
-                  >
-                    {wp.name}
-                  </AppText>
-                </Pressable>
-              ))}
-            </ScrollView>
-          </FadeInView>
-        )}
 
         {/* ── Process Button ── */}
-        {imageUri && parsedShifts.length === 0 && (
+        {imageUri && detectedShiftCount === 0 && (
           <FadeInView delay={150}>
             <AppButton
               label={processing ? "Analyzing..." : "Scan Schedule"}
@@ -357,45 +470,66 @@ export default function UploadShiftScreen() {
         )}
 
         {/* ── OCR Result: Name Found Status ── */}
-        {nameFound !== null && (
+        {scanCompleted && (
           <FadeInView delay={50}>
-            {/* AI badge */}
             <View style={styles.aiBadge}>
               <AppText variant="captionBold" color={colors.accent}>
                 🤖 Powered by Gemini AI
               </AppText>
             </View>
-            <AppCard
-              style={[
-                styles.statusCard,
-                {
-                  borderColor: nameFound
-                    ? colors.success + "44"
-                    : colors.warning + "44",
-                },
-              ]}
-            >
+
+            <AppCard style={styles.statusCard}>
               <View style={styles.statusRow}>
                 <IconSymbol
                   name={
-                    nameFound
-                      ? "checkmark.circle.fill"
+                    detectedShiftCount > 0
+                      ? needsReview
+                        ? "exclamationmark.triangle.fill"
+                        : "checkmark.circle.fill"
                       : "exclamationmark.triangle.fill"
                   }
                   size={22}
-                  color={nameFound ? colors.success : colors.warning}
+                  color={
+                    detectedShiftCount > 0
+                      ? needsReview
+                        ? colors.warning
+                        : colors.success
+                      : colors.warning
+                  }
                 />
+
                 <View style={styles.flex1}>
                   <AppText
                     variant="bodyBold"
-                    color={nameFound ? colors.success : colors.warning}
+                    color={
+                      detectedShiftCount > 0
+                        ? needsReview
+                          ? colors.warning
+                          : colors.success
+                        : colors.warning
+                    }
                   >
-                    {nameFound ? "Name Found!" : "Name Not Found"}
+                    {detectedShiftCount > 0
+                      ? `${detectedShiftCount} shift${
+                          detectedShiftCount !== 1 ? "s were" : " was"
+                        } detected. Review the details below before adding.`
+                      : "Try a clearer image or confirm that the screenshot contains visible shift dates and times."}
                   </AppText>
+
                   <AppText variant="caption" color={colors.textSecondary}>
-                    {nameFound
-                      ? `Found "${scanName}" in the schedule. ${parsedShifts.length} shift${parsedShifts.length !== 1 ? "s" : ""} detected.`
-                      : `Could not find "${scanName}" in this schedule. Try a different image or check the name in Settings.`}
+                    {detectedShiftCount > 0
+                      ? assumedPersonal && !nameFound
+                        ? `Your name is not visible, but ${detectedShiftCount} shift${
+                            detectedShiftCount !== 1 ? "s were" : " was"
+                          } found. Review them before adding.`
+                        : needsReview
+                          ? `${detectedShiftCount} shift${
+                              detectedShiftCount !== 1 ? "s were" : " was"
+                            } detected. Confirm the dates and times before saving.`
+                          : `${detectedShiftCount} shift${
+                              detectedShiftCount !== 1 ? "s are" : " is"
+                            } ready to add.`
+                      : "Try a clearer image or confirm that the screenshot contains visible shift dates and times."}
                   </AppText>
                 </View>
               </View>
@@ -422,12 +556,12 @@ export default function UploadShiftScreen() {
         )}
 
         {/* ── Parsed Shifts ── */}
-        {parsedShifts.length > 0 && (
+        {detectedShiftCount > 0 && (
           <FadeInView delay={150}>
             <View style={styles.sectionHeader}>
               <AppText variant="subheading">Detected Shifts</AppText>
               <AppText variant="caption" color={colors.textSecondary}>
-                {selectedIds.size}/{parsedShifts.length} selected
+                {selectedIds.size}/{detectedShiftCount} selected
               </AppText>
             </View>
 
@@ -446,7 +580,7 @@ export default function UploadShiftScreen() {
                           opacity: selected ? 1 : 0.6,
                         },
                       ]}
-                      accentBorder={selected ? selectedWp?.color : undefined}
+                      // accentBorder={selected ? selectedWp?.color : undefined}
                     >
                       <View style={styles.shiftRow}>
                         {/* Checkbox */}
@@ -486,8 +620,7 @@ export default function UploadShiftScreen() {
                               style={[
                                 styles.wpDot,
                                 {
-                                  backgroundColor:
-                                    selectedWp?.color ?? colors.accent,
+                                  backgroundColor: currentAssignmentColor,
                                 },
                               ]}
                             />
@@ -495,7 +628,7 @@ export default function UploadShiftScreen() {
                               variant="label"
                               color={colors.textSecondary}
                             >
-                              {selectedWp?.name ?? "No workplace"} · Pending
+                              {currentAssignmentLabel} · Pending
                             </AppText>
                           </View>
                         </View>
@@ -505,6 +638,235 @@ export default function UploadShiftScreen() {
                 </FadeInView>
               );
             })}
+
+            {/* ── Shift Assignment ── */}
+            {detectedShiftCount > 0 && (
+              <FadeInView delay={100}>
+                <AppText variant="subheading" style={styles.sectionTitle}>
+                  Assign These Shifts
+                </AppText>
+
+                <AppText
+                  variant="caption"
+                  color={colors.textSecondary}
+                  style={styles.workplaceHelp}
+                >
+                  Select a regular workplace, use a temporary company name, or
+                  leave the shifts unassigned for now.
+                </AppText>
+
+                {/* Saved workplaces */}
+                {workplaces.length > 0 && (
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    style={styles.wpScroll}
+                    contentContainerStyle={styles.wpScrollContent}
+                  >
+                    {workplaces.map((workplace) => {
+                      const selected =
+                        associationType === "workplace" &&
+                        workplaceId === workplace.id;
+
+                      return (
+                        <Pressable
+                          key={workplace.id}
+                          onPress={() => {
+                            setAssociationType("workplace");
+                            setWorkplaceId(workplace.id);
+                            setTemporaryWorkplaceName("");
+                          }}
+                          style={[
+                            styles.wpChip,
+                            {
+                              backgroundColor: selected
+                                ? workplace.color + "22"
+                                : colors.surface,
+                              borderColor: selected
+                                ? workplace.color
+                                : colors.border,
+                            },
+                          ]}
+                        >
+                          <View
+                            style={[
+                              styles.wpDot,
+                              {
+                                backgroundColor: workplace.color,
+                              },
+                            ]}
+                          />
+
+                          <AppText
+                            variant="captionBold"
+                            color={
+                              selected ? workplace.color : colors.textSecondary
+                            }
+                          >
+                            {workplace.name}
+                          </AppText>
+
+                          {selected && (
+                            <IconSymbol
+                              name="checkmark.circle.fill"
+                              size={16}
+                              color={workplace.color}
+                            />
+                          )}
+                        </Pressable>
+                      );
+                    })}
+                  </ScrollView>
+                )}
+
+                {/* Add permanent workplace */}
+                <Pressable
+                  onPress={() => router.push("/add-workplace")}
+                  style={[
+                    styles.addAnotherWorkplace,
+                    {
+                      backgroundColor: colors.surface,
+                      borderColor: colors.border,
+                    },
+                  ]}
+                >
+                  <IconSymbol
+                    name="plus.circle.fill"
+                    size={18}
+                    color={colors.accent}
+                  />
+
+                  <View style={styles.flex1}>
+                    <AppText variant="bodyBold" color={colors.accent}>
+                      Add Saved Workplace
+                    </AppText>
+
+                    <AppText variant="caption" color={colors.textSecondary}>
+                      Use for a regular employer such as BoatHouse or Walmart.
+                    </AppText>
+                  </View>
+                </Pressable>
+
+                {/* Temporary / unassigned */}
+                <View style={styles.assignmentOptions}>
+                  <Pressable
+                    onPress={() => {
+                      setAssociationType("temporary");
+                      setWorkplaceId("");
+                    }}
+                    style={[
+                      styles.assignmentOption,
+                      {
+                        borderColor:
+                          associationType === "temporary"
+                            ? colors.accent
+                            : colors.border,
+                        backgroundColor:
+                          associationType === "temporary"
+                            ? colors.accent + "18"
+                            : colors.surface,
+                      },
+                    ]}
+                  >
+                    <View style={styles.assignmentOptionRow}>
+                      <IconSymbol
+                        name="clock.fill"
+                        size={20}
+                        color={
+                          associationType === "temporary"
+                            ? colors.accent
+                            : colors.textSecondary
+                        }
+                      />
+
+                      <View style={styles.flex1}>
+                        <AppText variant="bodyBold">
+                          Temporary / One-time Shift
+                        </AppText>
+
+                        <AppText variant="caption" color={colors.textSecondary}>
+                          For agency, security, event, or occasional work.
+                        </AppText>
+                      </View>
+
+                      {associationType === "temporary" && (
+                        <IconSymbol
+                          name="checkmark.circle.fill"
+                          size={20}
+                          color={colors.accent}
+                        />
+                      )}
+                    </View>
+                  </Pressable>
+
+                  {associationType === "temporary" && (
+                    <TextInput
+                      value={temporaryWorkplaceName}
+                      onChangeText={setTemporaryWorkplaceName}
+                      placeholder="Agency or company name (optional)"
+                      placeholderTextColor={colors.textSecondary}
+                      style={[
+                        styles.tempInput,
+                        {
+                          color: colors.text,
+                          backgroundColor: colors.surface,
+                          borderColor: colors.border,
+                        },
+                      ]}
+                    />
+                  )}
+
+                  <Pressable
+                    onPress={() => {
+                      setAssociationType("unassigned");
+                      setWorkplaceId("");
+                      setTemporaryWorkplaceName("");
+                    }}
+                    style={[
+                      styles.assignmentOption,
+                      {
+                        borderColor:
+                          associationType === "unassigned"
+                            ? colors.accent
+                            : colors.border,
+                        backgroundColor:
+                          associationType === "unassigned"
+                            ? colors.accent + "18"
+                            : colors.surface,
+                      },
+                    ]}
+                  >
+                    <View style={styles.assignmentOptionRow}>
+                      <IconSymbol
+                        name="questionmark.circle.fill"
+                        size={20}
+                        color={
+                          associationType === "unassigned"
+                            ? colors.accent
+                            : colors.textSecondary
+                        }
+                      />
+
+                      <View style={styles.flex1}>
+                        <AppText variant="bodyBold">Unassigned for Now</AppText>
+
+                        <AppText variant="caption" color={colors.textSecondary}>
+                          Save the shifts now and assign a workplace later.
+                        </AppText>
+                      </View>
+
+                      {associationType === "unassigned" && (
+                        <IconSymbol
+                          name="checkmark.circle.fill"
+                          size={20}
+                          color={colors.accent}
+                        />
+                      )}
+                    </View>
+                  </Pressable>
+                </View>
+              </FadeInView>
+            )}
 
             {/* Add Selected Button */}
             <View style={styles.addRow}>
@@ -644,5 +1006,74 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 8,
     marginBottom: 8,
+  },
+  noWorkplaceCard: {
+    marginBottom: 16,
+  },
+
+  noWorkplaceTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+
+  noWorkplaceIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  noWorkplaceDescription: {
+    marginTop: 4,
+    lineHeight: 18,
+  },
+
+  addWorkplaceButton: {
+    marginTop: 16,
+  },
+
+  workplaceHelp: {
+    marginBottom: 10,
+  },
+
+  wpScrollContent: {
+    paddingRight: 12,
+  },
+
+  addAnotherWorkplace: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 12,
+  },
+  assignmentOptionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  assignmentOptions: {
+    gap: 10,
+    marginBottom: 16,
+  },
+
+  assignmentOption: {
+    borderWidth: 1,
+    borderRadius: 14,
+    padding: 14,
+    gap: 4,
+  },
+
+  tempInput: {
+    minHeight: 50,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    marginBottom: 16,
   },
 });
