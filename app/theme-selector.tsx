@@ -1,11 +1,11 @@
 import { useRouter } from "expo-router";
 import React, { useCallback, useMemo } from "react";
 import {
-    Dimensions,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    View,
+  Dimensions,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  View,
 } from "react-native";
 
 import { AnimatedPress } from "@/components/ui/animated-press";
@@ -253,9 +253,17 @@ function ThemeGridCard({
 // ─── Main Screen ────────────────────────────────────────────────────
 export default function ThemeSelectorScreen() {
   const router = useRouter();
-  const { colors } = useAppTheme();
-  const currentThemeId = useThemeStore((s) => s.themeId);
-  const setTheme = useThemeStore((s) => s.setTheme);
+  //TODO: CLAUDE
+  // const { colors } = useAppTheme();
+  // const currentThemeId = useThemeStore((s) => s.themeId);
+  // const setTheme = useThemeStore((s) => s.setTheme);
+  const { colors, theme } = useAppTheme();
+
+  const currentThemeId = useThemeStore((state) => state.themeId);
+
+  const customThemes = useThemeStore((state) => state.customThemes);
+
+  const setTheme = useThemeStore((state) => state.setTheme);
 
   const grouped = useMemo(() => {
     const map: Record<ThemeCategory, AppTheme[]> = {
@@ -274,8 +282,11 @@ export default function ThemeSelectorScreen() {
     },
     [setTheme],
   );
-
-  const currentTheme = allThemes.find((t) => t.id === currentThemeId);
+  //TODO: CLAUDE
+  // const currentTheme = allThemes.find((t) => t.id === currentThemeId);
+  const currentTheme = [...allThemes, ...customThemes].find(
+    (item) => item.id === currentThemeId,
+  );
 
   return (
     <AppScreen safeTop>
@@ -310,7 +321,8 @@ export default function ThemeSelectorScreen() {
           >
             <View style={s.heroInner}>
               <MiniPreview
-                tokens={currentTheme?.tokens ?? colors}
+                // tokens={currentTheme?.tokens ?? colors}
+                tokens={currentTheme?.tokens ?? theme.tokens}
                 size="large"
               />
               <View style={s.heroText}>
@@ -373,7 +385,7 @@ export default function ThemeSelectorScreen() {
                       key={t.id}
                       theme={t}
                       isActive={t.id === currentThemeId}
-                      currentColors={colors}
+                      currentColors={theme.tokens}
                       onSelect={() => handleSelect(t.id)}
                     />
                   ))}
