@@ -1,72 +1,98 @@
-import { useAppTheme } from "@/hooks/use-app-theme";
+import { BlurView } from "expo-blur";
 import React from "react";
-import { StyleSheet, View, type ViewProps } from "react-native";
+import { StyleSheet, View } from "react-native";
 
-interface AppCardProps extends ViewProps {
-  /** Use glass/blur styling when theme supports it (default auto) */
-  glass?: boolean;
-  /** Override padding (default 18) */
-  padding?: number;
-  /** Highlight border colour (e.g. workplace colour) */
-  accentBorder?: string;
+import { useAppTheme } from "@/hooks/use-app-theme";
+import { cardPadding, cornerRadii } from "@/theme/design-system";
+
+interface AppCardProps {
+  children: React.ReactNode;
+  style?: any;
+  /** Conflict accent bar color (overrides default tertiary) */
+  conflictAccent?: string;
+  /** Show conflict state (left accent bar + soft background) */
+  isConflict?: boolean;
+  /** Use nested/inset appearance (surface_lowest background) */
+  isNested?: boolean;
+  /** Tonal surface tier (default: container) */
+  tier?: "lowest" | "low" | "container" | "high" | "highest";
 }
 
-/**
- * Theme-aware card surface.
- * Automatically picks up card colour, border, radius, and shadow from the
- * active theme. Premium glass themes get a refined translucent appearance.
- */
 export function AppCard({
-  glass,
-  padding = 18,
-  accentBorder,
-  style,
   children,
-  ...rest
+  style,
+  conflictAccent,
+  isConflict,
+  isNested,
+  tier = "container",
 }: AppCardProps) {
-  const { colors, theme } = useAppTheme();
-  const r = theme.tokens.radiusScale;
-  const useGlass = glass ?? theme.tokens.glassOpacity > 0;
+  const { theme } = useAppTheme();
+  const tokens = theme.tokens;
 
-  return (
+  const isGlass = tokens.glassOpacity > 0;
+
+  // ── Background tier selection ──────────────────────────────────────
+  const tierMap: Record<string, string> = {
+    lowest: tokens.surface_lowest,
+    low: tokens.surface_container_low,
+    container: tokens.surface_container,
+    high: tokens.surface_container_high,
+    highest: tokens.surface_container_highest,
+  };
+
+  const backgroundColor = isNested ? tokens.surface_lowest : tierMap[tier];
+
+  // ── Conflict state styling ─────────────────────────────────────────
+  const conflictStyle = isConflict
+    ? {
+        borderLeftWidth: 4,
+        borderLeftColor: conflictAccent ?? tokens.tertiary,
+        paddingLeft: 12,
+        backgroundColor: tokens.tertiary_container + "0F", // Soft wash
+      }
+    : {};
+
+  const content = (
     <View
       style={[
         styles.card,
         {
-          backgroundColor: useGlass ? colors.card : colors.card,
-          borderColor: accentBorder
-            ? accentBorder + "66"
-            : useGlass
-              ? colors.border
-              : colors.border,
-          borderRadius: 16 * r,
-          padding,
-          // Enhanced shadow system
-          shadowColor: useGlass ? colors.accent + "15" : colors.shadow,
-          shadowOffset: { width: 0, height: useGlass ? 6 : 4 },
-          shadowOpacity: useGlass ? 0.2 : 0.08,
-          shadowRadius: useGlass ? 20 : 8,
-          elevation: useGlass ? 8 : 3,
+          backgroundColor,
+          paddingHorizontal: cardPadding(tokens, 3),
+          paddingVertical: cardPadding(tokens, 3),
         },
-        accentBorder && {
-          borderLeftWidth: 3,
-          borderLeftColor: accentBorder,
-        },
-        useGlass && {
-          borderWidth: 0.5,
-        },
+        conflictStyle,
         style,
       ]}
-      {...rest}
     >
       {children}
     </View>
   );
+
+  // ── Glass morphism for floating elements (if theme supports it) ─────
+  if (!isGlass) {
+    return content;
+  }
+
+  return (
+    <BlurView
+      intensity={60}
+      tint={tokens.blurTint}
+      style={styles.blurContainer}
+    >
+      {content}
+    </BlurView>
+  );
 }
 
 const styles = StyleSheet.create({
-  card: {
-    borderWidth: 1,
+  blurContainer: {
+    borderRadius: cornerRadii.lg,
     overflow: "hidden",
+  },
+  card: {
+    borderRadius: cornerRadii.lg,
+    // ── NO BORDER — boundaries defined by background shifts only ────
+    // Conflict state adds a left accent bar in the style prop
   },
 });

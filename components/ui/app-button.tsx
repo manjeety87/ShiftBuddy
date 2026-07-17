@@ -1,10 +1,12 @@
 import { useAppTheme } from "@/hooks/use-app-theme";
+import { buttonGradientColors, cornerRadii } from "@/theme/design-system";
+import { LinearGradient } from "expo-linear-gradient";
 import React from "react";
 import {
-    Pressable,
-    StyleSheet,
-    type PressableProps,
-    type ViewStyle,
+  Pressable,
+  StyleSheet,
+  type PressableProps,
+  type ViewStyle,
 } from "react-native";
 import { AppText } from "./app-text";
 
@@ -29,10 +31,18 @@ interface AppButtonProps extends Omit<PressableProps, "children"> {
   leftIcon?: React.ReactNode;
   /** Right icon render function */
   rightIcon?: React.ReactNode;
+  /** Use pill (full) shape */
+  pill?: boolean;
 }
 
 /**
- * Theme-aware pressable button with multiple variants and sizes.
+ * Theme-aware button with gradient support, proper sizing, and design system adherence.
+ * Rules:
+ * - Primary: Gradient from primary to primary_container (lithographic effect)
+ * - Secondary: surface_container background
+ * - Outline: Transparent with ghost border (15% outline opacity)
+ * - Ghost: Text-only (primary_fixed_dim)
+ * - Danger: Error color with on_error text
  */
 export function AppButton({
   label,
@@ -43,79 +53,147 @@ export function AppButton({
   rightIcon,
   style,
   disabled,
+  pill,
   ...rest
 }: AppButtonProps) {
   const { colors, theme } = useAppTheme();
+  const tokens = theme.tokens;
   const r = theme.tokens.radiusScale;
 
-  // ── Colour mapping ──
-  const bg: Record<AppButtonVariant, string> = {
-    primary: colors.accent,
-    secondary: colors.surface,
-    outline: "transparent",
-    ghost: "transparent",
-    danger: colors.error,
-  };
-  const fg: Record<AppButtonVariant, string> = {
-    primary: "#FFFFFF",
-    secondary: colors.textPrimary,
-    outline: colors.accent,
-    ghost: colors.accent,
-    danger: "#FFFFFF",
-  };
-  const borderColor: Record<AppButtonVariant, string> = {
-    primary: "transparent",
-    secondary: colors.border,
-    outline: colors.accent,
-    ghost: "transparent",
-    danger: "transparent",
+  // ── Size mapping (Geometric Scale) ─────────────────────────────
+  const padY: Record<AppButtonSize, number> = { sm: 10, md: 14, lg: 18 };
+  const padX: Record<AppButtonSize, number> = { sm: 16, md: 24, lg: 32 };
+  const textVariant: Record<AppButtonSize, any> = {
+    sm: "label",
+    md: "bodyBold",
+    lg: "heading",
   };
 
-  // ── Size mapping ──
-  const padY: Record<AppButtonSize, number> = { sm: 8, md: 12, lg: 16 };
-  const padX: Record<AppButtonSize, number> = { sm: 14, md: 20, lg: 28 };
-  const radius: Record<AppButtonSize, number> = { sm: 8, md: 12, lg: 16 };
-  const textVariant =
-    size === "sm"
-      ? ("captionBold" as const)
-      : size === "lg"
-        ? ("subheading" as const)
-        : ("bodyBold" as const);
+  // ── Radius ────────────────────────────────────────────────────────
+  const radius = pill ? cornerRadii.full : cornerRadii.lg;
 
-  return (
-    <Pressable
-      style={({ pressed }) => [
-        styles.base,
-        {
-          backgroundColor: bg[variant],
-          borderColor: borderColor[variant],
-          borderRadius: radius[size] * r,
-          paddingVertical: padY[size],
-          paddingHorizontal: padX[size],
-          opacity: disabled ? 0.45 : pressed ? 0.78 : 1,
-        },
-        fullWidth && styles.fullWidth,
-        style as ViewStyle,
-      ]}
-      disabled={disabled}
-      {...rest}
-    >
+  // ── Variant colors ───────────────────────────────────────────────
+  const variantConfig = {
+    primary: {
+      bg: colors.accent,
+      fg: tokens.surface_darkest,
+      border: "transparent",
+      usesGradient: true,
+    },
+    secondary: {
+      bg: tokens.surface_container,
+      fg: colors.text,
+      border: tokens.outline_variant + "26", // Ghost border at 15%
+      usesGradient: false,
+    },
+    outline: {
+      bg: "transparent",
+      fg: colors.accent,
+      border: tokens.outline_variant + "26", // Ghost border
+      usesGradient: false,
+    },
+    ghost: {
+      bg: "transparent",
+      fg: tokens.primary_fixed_dim,
+      border: "transparent",
+      usesGradient: false,
+    },
+    danger: {
+      bg: colors.error,
+      fg: tokens.surface_bright,
+      border: "transparent",
+      usesGradient: false,
+    },
+  };
+
+  const config = variantConfig[variant];
+  const useGradient = config.usesGradient && !disabled;
+
+  const buttonContent = (
+    <>
       {leftIcon}
-      <AppText variant={textVariant} color={fg[variant]}>
+      <AppText variant={textVariant[size]} color={config.fg}>
         {label}
       </AppText>
       {rightIcon}
+    </>
+  );
+
+  const pressableStyle = ({ pressed }: { pressed: boolean }): ViewStyle => ({
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: padY[size],
+    paddingHorizontal: padX[size],
+    borderRadius: radius * r,
+    borderWidth: 1,
+    borderColor: config.border,
+    opacity: disabled ? 0.5 : pressed ? 0.85 : 1,
+    ...(fullWidth && { width: "100%" }),
+  });
+
+  if (useGradient) {
+    const [gradStart, gradEnd] = buttonGradientColors(tokens);
+    return (
+      <Pressable
+        style={({ pressed }) => [
+          {
+            borderRadius: radius * r,
+            overflow: "hidden",
+          },
+          fullWidth && { width: "100%" },
+          pressed && { opacity: 0.85 },
+        ]}
+        disabled={disabled}
+        {...rest}
+      >
+        <LinearGradient
+          colors={[gradStart, gradEnd]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={[
+            styles.gradientButton,
+            {
+              paddingVertical: padY[size],
+              paddingHorizontal: padX[size],
+            },
+          ]}
+        >
+          <AppText
+            variant={textVariant[size]}
+            color={tokens.surface_darkest}
+            style={styles.buttonText}
+          >
+            {label}
+          </AppText>
+          {leftIcon && leftIcon}
+          {rightIcon && rightIcon}
+        </LinearGradient>
+      </Pressable>
+    );
+  }
+
+  return (
+    <Pressable
+      style={({ pressed }) => [pressableStyle({ pressed }), style as ViewStyle]}
+      disabled={disabled}
+      {...rest}
+    >
+      {buttonContent}
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  base: {
+  gradientButton: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    borderWidth: 1,
   },
-  fullWidth: { width: "100%" },
+  buttonText: {
+    flex: 1,
+    textAlign: "center",
+  },
 });
