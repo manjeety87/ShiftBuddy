@@ -6,17 +6,23 @@ export type ShiftSource = "manual" | "image_ocr" | "google_calendar";
 /** Shift status */
 export type ShiftStatus = "confirmed" | "pending" | "cancelled";
 
+export type ShiftAssociationType = "workplace" | "temporary" | "unassigned";
+
 /** A single work shift */
 export interface Shift {
   id: string;
   source: ShiftSource;
-  workplaceId: string;
+
+  workplaceId: string | null;
+  associationType: ShiftAssociationType;
+  temporaryWorkplaceName?: string;
+
   title: string;
-  startDateTime: string; // ISO 8601
-  endDateTime: string; // ISO 8601
+  startDateTime: string;
+  endDateTime: string;
   notes?: string;
-  rawText?: string; // OCR original text
-  externalEventId?: string; // Google Calendar event id
+  rawText?: string;
+  externalEventId?: string;
   status: ShiftStatus;
   createdAt: string;
   updatedAt: string;
@@ -73,36 +79,40 @@ export interface CalendarImportSource {
   enabled: boolean;
 }
 
+//TODO: Commented
 // ─── Theme Types ────────────────────────────────────────────────────
 
-export type ThemeCategory = "standard" | "developer" | "premium" | "fun";
+// export type ThemeCategory = "standard" | "developer" | "premium" | "fun";
 
-export interface ThemeTokens {
-  background: string;
-  surface: string;
-  card: string;
-  textPrimary: string;
-  textSecondary: string;
-  accent: string;
-  success: string;
-  warning: string;
-  error: string;
-  border: string;
-  shadow: string;
-  overlay: string;
-  blurTint: "light" | "dark" | "default";
-  glassOpacity: number; // 0..1  (0 = fully transparent glass card)
-  radiusScale: number; // multiplier on default radii
-  gradientStart: string; // primary gradient colour
-  gradientEnd: string; // secondary gradient colour
-  highlight: string; // subtle highlight / selection tint
-  muted: string; // muted / disabled element colour
-}
+// export interface ThemeTokens {
+//   background: string;
+//   surface: string;
+//   card: string;
+//   textPrimary: string;
+//   textSecondary: string;
+//   accent: string;
+//   success: string;
+//   warning: string;
+//   error: string;
+//   border: string;
+//   shadow: string;
+//   overlay: string;
+//   blurTint: "light" | "dark" | "default";
+//   glassOpacity: number; // 0..1  (0 = fully transparent glass card)
+//   radiusScale: number; // multiplier on default radii
+//   gradientStart: string; // primary gradient colour
+//   gradientEnd: string; // secondary gradient colour
+//   highlight: string; // subtle highlight / selection tint
+//   muted: string; // muted / disabled element colour
+// }
 
-export interface AppTheme {
-  id: string;
-  name: string;
-  category: ThemeCategory;
-  tokens: ThemeTokens;
-  isPremium: boolean; // for future paywall
-}
+// export interface AppTheme {
+//   id: string;
+//   name: string;
+//   category: ThemeCategory;
+//   tokens: ThemeTokens;
+//   isPremium: boolean; // for future paywall
+// }
+
+export type { AppTheme, ThemeCategory, ThemeTokens } from "@/theme/types";
+
