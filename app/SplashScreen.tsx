@@ -1,29 +1,38 @@
+import { AppText } from "@/components/ui/app-text";
+import { useAppTheme } from "@/hooks/use-app-theme";
 import { MaterialIcons } from "@expo/vector-icons";
-import React, { useEffect, useMemo, useRef } from "react";
+import React, { useEffect, useRef } from "react";
 import {
   Animated,
-  Dimensions,
   Easing,
   StatusBar,
   StyleSheet,
-  Text,
   View,
+  useWindowDimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-
-const { width, height } = Dimensions.get("window");
 
 type SplashScreenProps = {
   onFinish?: () => void;
 };
 
 export default function SplashScreen({ onFinish }: SplashScreenProps) {
+  const { tokens, theme } = useAppTheme();
+  const { width, height } = useWindowDimensions();
+  const isDark = theme.tokens.mode === "dark";
+  const logoSize = Math.min(Math.max(width * 0.28, 116), 148);
+  const progressTrackWidth = Math.min(Math.max(width * 0.42, 160), 240);
+  const titleSize = Math.min(Math.max(width * 0.11, 36), 48);
+
   const glowScale = useRef(new Animated.Value(0.9)).current;
   const logoFloat = useRef(new Animated.Value(0)).current;
   const contentFade = useRef(new Animated.Value(0)).current;
   const progress = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
+    StatusBar.setBarStyle(isDark ? "light-content" : "dark-content");
+    StatusBar.setBackgroundColor(tokens.background);
+
     Animated.parallel([
       Animated.timing(contentFade, {
         toValue: 1,
@@ -73,34 +82,64 @@ export default function SplashScreen({ onFinish }: SplashScreenProps) {
 
     const timer = setTimeout(() => {
       onFinish?.();
-      // Example if using expo-router:
-      // router.replace("/(tabs)");
     }, 3000);
 
     return () => clearTimeout(timer);
-  }, [contentFade, glowScale, logoFloat, progress, onFinish]);
+  }, [
+    contentFade,
+    glowScale,
+    logoFloat,
+    progress,
+    onFinish,
+    isDark,
+    tokens.background,
+  ]);
 
   const progressWidth = progress.interpolate({
     inputRange: [0, 1],
-    outputRange: [0, 160],
+    outputRange: [0, progressTrackWidth],
   });
 
-  const logoTranslateStyle = useMemo(
-    () => ({
-      transform: [{ translateY: logoFloat }],
-    }),
-    [logoFloat],
-  );
+  const logoTranslateStyle = {
+    transform: [{ translateY: logoFloat }],
+  };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="light-content" backgroundColor={COLORS.background} />
+    <SafeAreaView
+      style={[styles.safeArea, { backgroundColor: tokens.background }]}
+    >
+      <StatusBar
+        barStyle={isDark ? "light-content" : "dark-content"}
+        backgroundColor={tokens.background}
+      />
 
       <View style={styles.container}>
-        {/* Ambient background glows */}
+        {/* Ambient background blobs */}
         <View style={styles.bgLayer}>
-          <View style={styles.topGlow} />
-          <View style={styles.bottomGlow} />
+          <View
+            style={[
+              styles.topBlob,
+              {
+                backgroundColor: `${tokens.primary}1A`,
+                width: width * 0.65,
+                height: width * 0.65,
+                top: -height * 0.08,
+                left: -width * 0.18,
+              },
+            ]}
+          />
+          <View
+            style={[
+              styles.bottomBlob,
+              {
+                backgroundColor: `${tokens.tertiary}12`,
+                width: width * 0.48,
+                height: width * 0.48,
+                bottom: -height * 0.05,
+                right: -width * 0.12,
+              },
+            ]}
+          />
         </View>
 
         <Animated.View
@@ -115,73 +154,156 @@ export default function SplashScreen({ onFinish }: SplashScreenProps) {
                 styles.outerGlow,
                 {
                   transform: [{ scale: glowScale }],
+                  backgroundColor: `${tokens.primary}1A`,
                 },
               ]}
             />
 
-            <View style={styles.logoCard}>
+            <View
+              style={[
+                styles.logoCard,
+                {
+                  width: logoSize,
+                  height: logoSize,
+                  backgroundColor: tokens.surface,
+                  borderColor: tokens.border,
+                },
+              ]}
+            >
               <MaterialIcons
                 name="work-history"
                 size={68}
-                color={COLORS.primary}
+                color={tokens.primary}
               />
 
-              <View style={styles.sparkBadge}>
-                <MaterialIcons name="auto-awesome" size={14} color="#002e69" />
+              <View
+                style={[
+                  styles.sparkBadge,
+                  {
+                    backgroundColor: tokens.primary_container,
+                  },
+                ]}
+              >
+                <MaterialIcons
+                  name="auto-awesome"
+                  size={14}
+                  color={tokens.iconOnPrimary}
+                />
               </View>
             </View>
           </Animated.View>
 
           <View style={styles.textBlock}>
-            <Text style={styles.title}>ShiftsBuddy</Text>
+            <AppText
+              variant="largeTitle"
+              center
+              style={[
+                styles.title,
+                {
+                  color: tokens.textPrimary,
+                  fontSize: titleSize,
+                  lineHeight: titleSize + 8,
+                },
+              ]}
+            >
+              ShiftBuddy
+            </AppText>
 
             <View style={styles.subtitleRow}>
-              <View style={styles.line} />
-              <Text style={styles.subtitle}>THE ORCHESTRATOR</Text>
-              <View style={styles.line} />
+              <View
+                style={[
+                  styles.line,
+                  { backgroundColor: `${tokens.textTertiary}47` },
+                ]}
+              />
+              <AppText
+                variant="overline"
+                center
+                style={[
+                  styles.subtitle,
+                  {
+                    color: tokens.textSecondary,
+                  },
+                ]}
+              >
+                All your jobs. One clear schedule.
+              </AppText>
+              <View
+                style={[
+                  styles.line,
+                  { backgroundColor: `${tokens.textTertiary}47` },
+                ]}
+              />
             </View>
           </View>
         </Animated.View>
 
         <View style={styles.bottomSection}>
-          <View style={styles.progressTrack}>
+          <View style={[styles.progressTrack, { width: progressTrackWidth }]}>
             <Animated.View
-              style={[styles.progressFill, { width: progressWidth }]}
+              style={[
+                styles.progressFill,
+                { width: progressWidth },
+                { backgroundColor: tokens.primary },
+              ]}
             />
           </View>
 
-          <Text style={styles.loadingText}>
-            PREPARING YOUR EXECUTIVE DASHBOARD
-          </Text>
+          <AppText
+            variant="overline"
+            center
+            style={[
+              styles.loadingText,
+              {
+                color: `${tokens.textTertiary}B8`,
+              },
+            ]}
+          >
+            Synchronizing Workspaces
+          </AppText>
         </View>
 
-        {/* subtle texture substitute */}
-        <View pointerEvents="none" style={styles.noiseOverlay} />
+        {/* Footer */}
+        <View style={styles.footer}>
+          <View
+            style={[
+              styles.footerLine,
+              { backgroundColor: `${tokens.primary}33` },
+            ]}
+          />
+          <AppText
+            variant="overline"
+            center
+            style={[
+              styles.footerVersion,
+              {
+                color: `${tokens.primary}4D`,
+              },
+            ]}
+          >
+            v 2.4.0
+          </AppText>
+          <View
+            style={[
+              styles.footerLine,
+              { backgroundColor: `${tokens.primary}33` },
+            ]}
+          />
+        </View>
+
+        {/* Subtle texture overlay */}
+        <View style={styles.noiseOverlay} />
       </View>
     </SafeAreaView>
   );
 }
 
-const COLORS = {
-  background: "#10131a",
-  surface: "#1d2026",
-  surfaceHigh: "#32353c",
-  outline: "#8b90a0",
-  outlineVariant: "#414755",
-  primary: "#adc6ff",
-  primaryDeep: "#4b8eff",
-  text: "#e1e2eb",
-  tertiary: "#ffb595",
-};
-
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: COLORS.background,
   },
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 24,
@@ -190,24 +312,14 @@ const styles = StyleSheet.create({
   bgLayer: {
     ...StyleSheet.absoluteFillObject,
   },
-  topGlow: {
+  topBlob: {
     position: "absolute",
-    top: -height * 0.08,
-    left: -width * 0.18,
-    width: width * 0.65,
-    height: width * 0.65,
     borderRadius: 999,
-    backgroundColor: "rgba(173,198,255,0.10)",
     transform: [{ scaleX: 1.2 }, { scaleY: 1.2 }],
   },
-  bottomGlow: {
+  bottomBlob: {
     position: "absolute",
-    bottom: -height * 0.05,
-    right: -width * 0.12,
-    width: width * 0.48,
-    height: width * 0.48,
     borderRadius: 999,
-    backgroundColor: "rgba(255,181,149,0.07)",
     transform: [{ scaleX: 1.15 }, { scaleY: 1.15 }],
   },
   centerContent: {
@@ -221,18 +333,11 @@ const styles = StyleSheet.create({
   },
   outerGlow: {
     position: "absolute",
-    width: 150,
-    height: 150,
     borderRadius: 999,
-    backgroundColor: "rgba(173,198,255,0.14)",
   },
   logoCard: {
-    width: 128,
-    height: 128,
     borderRadius: 32,
-    backgroundColor: COLORS.surface,
     borderWidth: 1,
-    borderColor: "rgba(65,71,85,0.35)",
     alignItems: "center",
     justifyContent: "center",
     shadowColor: "#000",
@@ -248,10 +353,8 @@ const styles = StyleSheet.create({
     width: 30,
     height: 30,
     borderRadius: 999,
-    backgroundColor: COLORS.primaryDeep,
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: COLORS.primaryDeep,
     shadowOpacity: 0.4,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 4 },
@@ -261,9 +364,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   title: {
-    color: COLORS.text,
-    fontSize: 42,
-    fontWeight: "800",
     letterSpacing: -1.4,
   },
   subtitleRow: {
@@ -274,12 +374,8 @@ const styles = StyleSheet.create({
   line: {
     width: 34,
     height: 1,
-    backgroundColor: "rgba(139,144,160,0.28)",
   },
   subtitle: {
-    color: COLORS.outline,
-    fontSize: 11,
-    fontWeight: "700",
     letterSpacing: 4,
     marginHorizontal: 12,
   },
@@ -289,27 +385,41 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   progressTrack: {
-    width: 160,
     height: 6,
     borderRadius: 999,
-    backgroundColor: COLORS.surfaceHigh,
     overflow: "hidden",
   },
   progressFill: {
     height: "100%",
     borderRadius: 999,
-    backgroundColor: COLORS.primary,
   },
   loadingText: {
     marginTop: 16,
-    color: "rgba(139,144,160,0.72)",
-    fontSize: 10,
-    fontWeight: "700",
     letterSpacing: 2.4,
+  },
+  footer: {
+    position: "absolute",
+    bottom: 10,
+    left: 0,
+    right: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 8,
+    opacity: 0.3,
+  },
+  footerLine: {
+    flex: 1,
+    height: 1,
+  },
+  footerVersion: {
+    letterSpacing: 2.4,
+    marginHorizontal: 12,
   },
   noiseOverlay: {
     ...StyleSheet.absoluteFillObject,
     opacity: 0.04,
     backgroundColor: "#ffffff",
+    pointerEvents: "none",
   },
 });
