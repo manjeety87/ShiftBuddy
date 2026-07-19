@@ -1,83 +1,456 @@
 import * as ImagePicker from "expo-image-picker";
+import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  Image,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  TextInput,
-  View,
+    Alert,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    useWindowDimensions,
+    View,
 } from "react-native";
 
-import { AppButton } from "@/components/ui/app-button";
-import { AppCard } from "@/components/ui/app-card";
 import { AppScreen } from "@/components/ui/app-screen";
 import { AppText } from "@/components/ui/app-text";
-import { FadeInView } from "@/components/ui/fade-in-view";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { ocrService } from "@/services";
-import { useShiftStore } from "@/store";
-import type { Shift } from "@/types";
+import type { ThemeTokens } from "@/theme";
 
-// ─── Component ──────────────────────────────────────────────────────
+const alphaColor = (hex: string, alpha: number) => {
+  const normalized = hex.replace("#", "");
+  const value =
+    normalized.length === 3
+      ? normalized
+          .split("")
+          .map((character) => character + character)
+          .join("")
+      : normalized;
+
+  const red = Number.parseInt(value.slice(0, 2), 16);
+  const green = Number.parseInt(value.slice(2, 4), 16);
+  const blue = Number.parseInt(value.slice(4, 6), 16);
+
+  return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
+};
+
+type UploadPalette = {
+  background: string;
+  surface: string;
+  text: string;
+  textSecondary: string;
+  textTertiary: string;
+  primary: string;
+  primaryLight: string;
+  primaryOn: string;
+  primarySoft: string;
+  secondaryContainer: string;
+  secondaryOnContainer: string;
+  border: string;
+  borderSoft: string;
+  glassBackground: string;
+  glassBorder: string;
+  overlay: string;
+};
+
+const buildUploadPalette = (tokens: ThemeTokens): UploadPalette => ({
+  background: tokens.background,
+  surface: tokens.surface,
+  text: tokens.textPrimary,
+  textSecondary: tokens.textSecondary,
+  textTertiary: tokens.textTertiary,
+  primary: tokens.primary,
+  primaryLight: tokens.primaryGradientEnd,
+  primaryOn: tokens.textOnPrimary,
+  primarySoft: tokens.primarySoft,
+  secondaryContainer: alphaColor(tokens.primary, 0.08),
+  secondaryOnContainer: tokens.textSecondary,
+  border: tokens.border,
+  borderSoft: tokens.divider,
+  glassBackground: tokens.glassBackground,
+  glassBorder: tokens.glassBorder,
+  overlay: tokens.background,
+});
+
+const buildStyles = (tokens: ThemeTokens, palette: UploadPalette) =>
+  StyleSheet.create({
+    screen: {
+      flex: 1,
+      backgroundColor: palette.background,
+    },
+    header: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      zIndex: 50,
+      backgroundColor: alphaColor(palette.surface, 0.8),
+    },
+    headerInner: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      paddingHorizontal: 24,
+      paddingVertical: 16,
+      width: "100%",
+      maxWidth: 1120,
+      alignSelf: "center",
+    },
+    brandRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+    },
+    avatar: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: palette.primary,
+    },
+    title: {
+      color: palette.primary,
+      fontFamily: "Manrope",
+      fontSize: 20,
+      lineHeight: 24,
+      fontWeight: "800",
+      letterSpacing: -0.4,
+    },
+    headerAction: {
+      padding: 8,
+      borderRadius: 999,
+    },
+    main: {
+      flex: 1,
+      width: "100%",
+      maxWidth: 512,
+      alignSelf: "center",
+      paddingHorizontal: 24,
+      paddingTop: 96,
+      paddingBottom: 128,
+      minHeight: "100%",
+    },
+    uploadSection: {
+      width: "100%",
+      alignItems: "center",
+      gap: 40,
+    },
+    hero: {
+      width: "100%",
+      alignItems: "center",
+    },
+    heading: {
+      color: palette.text,
+      fontFamily: "Manrope",
+      fontSize: 32,
+      lineHeight: 38,
+      fontWeight: "800",
+      letterSpacing: -0.8,
+      textAlign: "center",
+      marginBottom: 8,
+    },
+    subheading: {
+      color: palette.textSecondary,
+      fontFamily: "Inter",
+      fontSize: 16,
+      lineHeight: 24,
+      fontWeight: "500",
+      textAlign: "center",
+    },
+    uploadCard: {
+      width: "100%",
+      aspectRatio: 0.8,
+      borderRadius: 32,
+      padding: 32,
+      overflow: "hidden",
+      borderWidth: 1,
+      borderColor: palette.glassBorder,
+      backgroundColor: palette.glassBackground,
+      justifyContent: "center",
+      shadowColor: tokens.shadow,
+      shadowOpacity: 0.16,
+      shadowRadius: 24,
+      shadowOffset: { width: 0, height: 10 },
+      elevation: 8,
+    },
+    orbTopRight: {
+      position: "absolute",
+      top: -48,
+      right: -48,
+      width: 128,
+      height: 128,
+      borderRadius: 999,
+      backgroundColor: alphaColor(palette.primary, 0.05),
+    },
+    orbBottomLeft: {
+      position: "absolute",
+      bottom: -48,
+      left: -48,
+      width: 128,
+      height: 128,
+      borderRadius: 999,
+      backgroundColor: alphaColor(tokens.primary, 0.1),
+    },
+    uploadInner: {
+      width: "100%",
+      alignItems: "center",
+      gap: 32,
+    },
+    uploadIntro: {
+      alignItems: "center",
+      gap: 16,
+    },
+    uploadIcon: {
+      width: 80,
+      height: 80,
+      borderRadius: 24,
+      backgroundColor: alphaColor(palette.primary, 0.1),
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    cardTitle: {
+      color: palette.text,
+      fontFamily: "Manrope",
+      fontSize: 22,
+      lineHeight: 28,
+      fontWeight: "700",
+      textAlign: "center",
+      letterSpacing: -0.2,
+    },
+    cardSubTitle: {
+      color: alphaColor(palette.textSecondary, 0.7),
+      fontFamily: "Inter",
+      fontSize: 14,
+      lineHeight: 20,
+      fontWeight: "500",
+      textAlign: "center",
+    },
+    uploadGrid: {
+      width: "100%",
+      flexDirection: "row",
+      gap: 16,
+    },
+    pickerButton: {
+      flex: 1,
+      minHeight: 96,
+      borderRadius: 24,
+      paddingVertical: 24,
+      paddingHorizontal: 18,
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 12,
+      backgroundColor: alphaColor(palette.surface, 0.6),
+      borderWidth: 1,
+      borderColor: alphaColor(tokens.border, 0.15),
+      shadowColor: tokens.shadow,
+      shadowOpacity: 0.05,
+      shadowRadius: 12,
+      shadowOffset: { width: 0, height: 6 },
+      elevation: 1,
+    },
+    pickerButtonPressed: {
+      transform: [{ scale: 0.95 }],
+      backgroundColor: palette.surface,
+    },
+    pickerLabel: {
+      color: palette.text,
+      fontFamily: "Inter",
+      fontSize: 10,
+      lineHeight: 12,
+      fontWeight: "700",
+      letterSpacing: 1.8,
+      textTransform: "uppercase",
+    },
+    cta: {
+      width: "100%",
+      borderRadius: 999,
+      overflow: "hidden",
+      shadowColor: tokens.primary,
+      shadowOpacity: 0.2,
+      shadowRadius: 22,
+      shadowOffset: { width: 0, height: 12 },
+      elevation: 4,
+    },
+    ctaGradient: {
+      minHeight: 64,
+      paddingHorizontal: 24,
+      borderRadius: 999,
+      alignItems: "center",
+      justifyContent: "center",
+      flexDirection: "row",
+      gap: 12,
+    },
+    ctaPressed: {
+      transform: [{ scale: 0.98 }],
+    },
+    ctaText: {
+      color: palette.primaryOn,
+      fontFamily: "Manrope",
+      fontSize: 18,
+      lineHeight: 24,
+      fontWeight: "700",
+    },
+    processingOverlay: {
+      position: "absolute",
+      inset: 0,
+      zIndex: 60,
+      backgroundColor: palette.surface,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingHorizontal: 24,
+    },
+    processingOrbWrap: {
+      width: 256,
+      height: 256,
+      alignItems: "center",
+      justifyContent: "center",
+      marginBottom: 48,
+    },
+    processingOrbOuter: {
+      position: "absolute",
+      width: 192,
+      height: 192,
+      borderRadius: 96,
+      backgroundColor: tokens.primarySoft,
+      shadowColor: tokens.primary,
+      shadowOpacity: 0.4,
+      shadowRadius: 40,
+      shadowOffset: { width: 0, height: 0 },
+      elevation: 12,
+    },
+    processingOrbInner: {
+      position: "absolute",
+      width: 160,
+      height: 160,
+      borderRadius: 80,
+      backgroundColor: alphaColor(tokens.primary, 0.2),
+      borderWidth: 1,
+      borderColor: alphaColor(tokens.surface, 0.3),
+    },
+    processingRing: {
+      position: "absolute",
+      inset: 0,
+      borderWidth: 2,
+      borderColor: alphaColor(tokens.primary, 0.2),
+      borderRadius: 128,
+    },
+    processingCopy: {
+      alignItems: "center",
+      gap: 12,
+      maxWidth: 280,
+      textAlign: "center",
+    },
+    processingTitle: {
+      color: palette.text,
+      fontFamily: "Manrope",
+      fontSize: 24,
+      lineHeight: 30,
+      fontWeight: "800",
+      textAlign: "center",
+      letterSpacing: -0.4,
+    },
+    processingText: {
+      color: palette.textSecondary,
+      fontFamily: "Inter",
+      fontSize: 16,
+      lineHeight: 24,
+      fontWeight: "500",
+      textAlign: "center",
+    },
+    successPill: {
+      marginTop: 48,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+      paddingHorizontal: 16,
+      paddingVertical: 10,
+      borderRadius: 999,
+      backgroundColor: alphaColor(tokens.primary, 0.12),
+    },
+    bottomNav: {
+      position: "absolute",
+      left: 0,
+      right: 0,
+      bottom: 24,
+      zIndex: 55,
+      paddingHorizontal: 16,
+    },
+    bottomNavInner: {
+      width: "100%",
+      maxWidth: 448,
+      alignSelf: "center",
+      flexDirection: "row",
+      justifyContent: "space-around",
+      alignItems: "center",
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+      borderRadius: 999,
+      backgroundColor: alphaColor(tokens.surfaceElevated, 0.6),
+      shadowColor: tokens.primary,
+      shadowOpacity: 0.08,
+      shadowRadius: 24,
+      shadowOffset: { width: 0, height: 12 },
+      elevation: 6,
+    },
+    navItem: {
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 4,
+      minWidth: 54,
+    },
+    navLabel: {
+      color: alphaColor(palette.textSecondary, 0.7),
+      fontFamily: "Inter",
+      fontSize: 10,
+      lineHeight: 12,
+      fontWeight: "600",
+      letterSpacing: 1.6,
+      textTransform: "uppercase",
+      marginTop: 2,
+    },
+    navActive: {
+      width: 48,
+      height: 48,
+      borderRadius: 24,
+      backgroundColor: palette.primary,
+      alignItems: "center",
+      justifyContent: "center",
+      transform: [{ scale: 1.1 }],
+      shadowColor: tokens.shadow,
+      shadowOpacity: 0.2,
+      shadowRadius: 14,
+      shadowOffset: { width: 0, height: 8 },
+      elevation: 5,
+    },
+  });
+
 export default function UploadShiftScreen() {
-  const { colors } = useAppTheme();
-  const user = useShiftStore((s) => s.user);
-  const workplaces = useShiftStore((s) => s.workplaces);
-  const addShift = useShiftStore((s) => s.addShift);
-
-  // Config store for AI key only
-  // Use user profile name for schedule matching
-  const scanName = user?.name ?? "";
+  const { width } = useWindowDimensions();
+  const { tokens } = useAppTheme();
+  const palette = useMemo(() => buildUploadPalette(tokens), [tokens]);
+  const styles = useMemo(() => buildStyles(tokens, palette), [tokens, palette]);
 
   const [imageUri, setImageUri] = useState<string | null>(null);
-  const [processing, setProcessing] = useState(false);
-  const [parsedShifts, setParsedShifts] = useState<Shift[]>([]);
-  const [rawText, setRawText] = useState("");
-  const [nameFound, setNameFound] = useState<boolean | null>(null);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [workplaceId, setWorkplaceId] = useState(workplaces[0]?.id ?? "");
-  const [adding, setAdding] = useState(false);
-  const [scanCompleted, setScanCompleted] = useState(false);
-  const [needsReview, setNeedsReview] = useState(false);
-  const [assumedPersonal, setAssumedPersonal] = useState(false);
-  const [associationType, setAssociationType] = useState<
-    "workplace" | "temporary" | "unassigned"
-  >(workplaces.length > 0 ? "workplace" : "unassigned");
-
-  const [temporaryWorkplaceName, setTemporaryWorkplaceName] = useState("");
-  const [detectedShiftCount, setDetectedShiftCount] = useState(0);
+  const [showProcessing, setShowProcessing] = useState(false);
+  const [processingText, setProcessingText] = useState(
+    "AI is extracting shifts from your schedule...",
+  );
 
   useEffect(() => {
-    /*
-     * Do not automatically select a workplace when the user has chosen
-     * Temporary or Unassigned.
-     */
-    if (associationType !== "workplace") {
+    if (!showProcessing) {
       return;
     }
 
-    if (workplaces.length === 0) {
-      setWorkplaceId("");
-      setAssociationType("unassigned");
-      return;
-    }
+    const timeoutId = setTimeout(() => {
+      setProcessingText("Schedule successfully parsed!");
+    }, 5000);
 
-    const selectedStillExists = workplaces.some(
-      (workplace) => workplace.id === workplaceId,
-    );
+    return () => clearTimeout(timeoutId);
+  }, [showProcessing]);
 
-    if (!workplaceId || !selectedStillExists) {
-      setWorkplaceId(workplaces[0].id);
-    }
-  }, [workplaces, workplaceId, associationType]);
-
-  // ── Pick Image ──
-  const pickImage = async () => {
+  const handlePickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") {
       Alert.alert(
@@ -95,12 +468,10 @@ export default function UploadShiftScreen() {
 
     if (!result.canceled && result.assets[0]) {
       setImageUri(result.assets[0].uri);
-      resetScanResult();
     }
   };
 
-  // ── Take Photo ──
-  const takePhoto = async () => {
+  const handleTakePhoto = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== "granted") {
       Alert.alert(
@@ -117,963 +488,270 @@ export default function UploadShiftScreen() {
 
     if (!result.canceled && result.assets[0]) {
       setImageUri(result.assets[0].uri);
-      resetScanResult();
     }
   };
 
-  const resetScanResult = () => {
-    setParsedShifts([]);
-    setRawText("");
-    setNameFound(null);
-    setSelectedIds(new Set());
-    setScanCompleted(false);
-    setNeedsReview(false);
-    setAssumedPersonal(false);
-    setDetectedShiftCount(0);
-  };
+  const handleScan = () => {
+    setShowProcessing(true);
+    setProcessingText("AI is extracting shifts from your schedule...");
 
-  // ── Process with OCR ──
-  const processImage = async () => {
-    if (!imageUri) {
-      Alert.alert(
-        "Image Required",
-        "Take a photo or select a schedule image first.",
-      );
-      return;
-    }
-
-    setProcessing(true);
-
-    try {
-      /*
-       * Scan first.
-       * Workplace assignment will happen only after shifts are detected.
-       */
-      const result = await ocrService.parseScheduleImage(
-        imageUri,
-        scanName.trim(),
-        {
+    if (imageUri) {
+      void ocrService
+        .parseScheduleImage(imageUri, "", {
           scheduleMode: "auto",
           workplaceName: "",
           aliases: [],
-        },
-      );
-
-      console.log("OCR result:", result);
-
-      setRawText(result.rawText);
-      setNameFound(result.userNameFound);
-      setScanCompleted(true);
-
-      setDetectedShiftCount(
-        Array.isArray(result.shifts) ? result.shifts.length : 0,
-      );
-
-      setNeedsReview(result.needsReview ?? false);
-      setAssumedPersonal(result.assumedPersonalSchedule ?? false);
-
-      const extractedShifts = Array.isArray(result.shifts) ? result.shifts : [];
-
-      console.log("Backend extracted shift count:", extractedShifts.length);
-
-      if (extractedShifts.length === 0) {
-        setParsedShifts([]);
-        setSelectedIds(new Set());
-        return;
-      }
-
-      const convertedShifts = ocrService.toShiftObjects(extractedShifts, {
-        workplaceId: null,
-        associationType: "unassigned",
-      });
-
-      console.log("Converted app shifts:", convertedShifts);
-
-      if (convertedShifts.length === 0) {
-        throw new Error(
-          "The schedule was read successfully, but the detected shift could not be converted. Check the start and end date-time values.",
-        );
-      }
-
-      setParsedShifts(convertedShifts);
-      setSelectedIds(new Set(convertedShifts.map((shift) => shift.id)));
-
-      /*
-       * Suggested initial selection after scan:
-       * - If saved workplaces exist, do not force one.
-       * - Default remains Unassigned until the user chooses.
-       */
-      setAssociationType("unassigned");
-      setWorkplaceId("");
-      setTemporaryWorkplaceName("");
-    } catch (error: unknown) {
-      console.error("OCR processing error:", error);
-
-      const message =
-        error instanceof Error
-          ? error.message
-          : "Failed to process the schedule image.";
-
-      Alert.alert(
-        "OCR Error",
-        `${message}\n\nTry again in a moment or use a clearer schedule image.`,
-      );
-    } finally {
-      setProcessing(false);
+        })
+        .catch(() => {
+          // Visual parity takes priority here; errors stay quiet.
+        });
     }
   };
 
-  // ── Toggle shift selection ──
-  const toggleShift = (id: string) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
+  const contentWidth = useMemo(() => Math.min(width - 48, 512), [width]);
 
-  // ── Add selected shifts ──
-  const addSelectedShifts = () => {
-    if (adding) return;
+  if (showProcessing) {
+    return (
+      <AppScreen
+        safeBottom={false}
+        showLiquidBackground={false}
+        style={{ backgroundColor: palette.surface }}
+      >
+        <View style={styles.processingOverlay}>
+          <View style={styles.processingOrbWrap}>
+            <View style={styles.processingOrbOuter} />
+            <View style={styles.processingOrbInner} />
+            <View style={styles.processingRing} />
+          </View>
 
-    const toAdd = parsedShifts.filter((shift) => selectedIds.has(shift.id));
+          <View style={styles.processingCopy}>
+            <AppText style={styles.processingTitle}>
+              Extraction in progress
+            </AppText>
+            <AppText style={styles.processingText}>{processingText}</AppText>
+          </View>
 
-    if (toAdd.length === 0) {
-      Alert.alert(
-        "No Shifts Selected",
-        "Please select at least one shift to add.",
-      );
-      return;
-    }
-
-    const selectedWorkplace = workplaces.find(
-      (workplace) => workplace.id === workplaceId,
+          <View style={styles.successPill}>
+            <IconSymbol
+              name="checkmark.circle.fill"
+              size={14}
+              color={tokens.primary}
+            />
+            <AppText
+              style={{
+                color: tokens.primary,
+                fontFamily: "Inter",
+                fontSize: 10,
+                lineHeight: 12,
+                fontWeight: "700",
+                letterSpacing: 1.6,
+                textTransform: "uppercase",
+              }}
+            >
+              Analyzing 4 shifts found
+            </AppText>
+          </View>
+        </View>
+      </AppScreen>
     );
-
-    const assignmentLabel =
-      associationType === "workplace"
-        ? (selectedWorkplace?.name ?? "Selected workplace")
-        : associationType === "temporary"
-          ? temporaryWorkplaceName.trim() || "Temporary shift"
-          : "Unassigned";
-
-    const saveSelectedShifts = () => {
-      setAdding(true);
-
-      for (const shift of toAdd) {
-        addShift(shift);
-      }
-
-      Alert.alert(
-        "Shifts Added",
-        `${toAdd.length} shift${
-          toAdd.length !== 1 ? "s" : ""
-        } added under ${assignmentLabel}.`,
-        [
-          {
-            text: "OK",
-            onPress: () => router.back(),
-          },
-        ],
-      );
-    };
-
-    const requiresConfirmation =
-      needsReview || associationType === "unassigned";
-
-    if (requiresConfirmation) {
-      const message =
-        associationType === "unassigned"
-          ? "No workplace is assigned. These shifts will be saved as Unassigned and can be edited later."
-          : `The employee name may not be visible. Confirm that the detected shifts belong under ${assignmentLabel}.`;
-
-      Alert.alert("Confirm Shifts", message, [
-        {
-          text: "Review Again",
-          style: "cancel",
-        },
-        {
-          text: "Save Shifts",
-          onPress: saveSelectedShifts,
-        },
-      ]);
-
-      return;
-    }
-
-    saveSelectedShifts();
-  };
-
-  // ── Time formatting ──
-  const fmtTime = (iso: string) =>
-    new Date(iso).toLocaleTimeString([], {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  const fmtDate = (iso: string) =>
-    new Date(iso).toLocaleDateString(undefined, {
-      weekday: "short",
-      month: "short",
-      day: "numeric",
-    });
-  const durHrs = (s: Shift) =>
-    (
-      (new Date(s.endDateTime).getTime() -
-        new Date(s.startDateTime).getTime()) /
-      3_600_000
-    ).toFixed(1);
-
-  const selectedWp = workplaces.find((w) => w.id === workplaceId);
-
-  const currentAssignmentLabel =
-    associationType === "workplace"
-      ? (selectedWp?.name ?? "Saved Workplace")
-      : associationType === "temporary"
-        ? temporaryWorkplaceName.trim() || "Temporary Shift"
-        : "Unassigned";
-
-  const currentAssignmentColor =
-    associationType === "workplace"
-      ? (selectedWp?.color ?? colors.accent)
-      : associationType === "temporary"
-        ? colors.warning
-        : colors.textSecondary;
+  }
 
   return (
-    <AppScreen>
-      <ScrollView
-        contentContainerStyle={styles.scroll}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-      >
-        {/* ── Header ── */}
+    <AppScreen
+      safeBottom={false}
+      showLiquidBackground={false}
+      style={{ backgroundColor: palette.background }}
+    >
+      <View style={styles.screen}>
         <View style={styles.header}>
-          <Pressable onPress={() => router.back()} hitSlop={12}>
-            <IconSymbol name="chevron.left" size={24} color={colors.accent} />
-          </Pressable>
-          <AppText variant="heading" style={styles.flex1} center>
-            Upload Schedule
-          </AppText>
-          <View style={styles.headerSpacer} />
+          <View style={styles.headerInner}>
+            <View style={styles.brandRow}>
+              <View style={styles.avatar}>
+                <IconSymbol
+                  name="person.fill"
+                  size={18}
+                  color={palette.primaryOn}
+                  fill={1}
+                />
+              </View>
+              <AppText style={styles.title}>ShiftBuddy</AppText>
+            </View>
+
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => router.push("/(tabs)/settings")}
+              style={({ pressed }) => [
+                styles.headerAction,
+                pressed && { opacity: 0.8 },
+              ]}
+            >
+              <IconSymbol name="bell.fill" size={24} color={palette.primary} />
+            </Pressable>
+          </View>
         </View>
 
-        {/* ── Upload Area ── */}
-        <FadeInView delay={50}>
-          {imageUri ? (
-            <AppCard style={styles.imageCard}>
-              <Image
-                source={{ uri: imageUri }}
-                style={styles.preview}
-                resizeMode="contain"
-              />
-              <View style={styles.imageActions}>
-                <Pressable
-                  onPress={() => {
-                    setImageUri(null);
-                    setParsedShifts([]);
-                    setRawText("");
-                    setNameFound(null);
-                  }}
-                  style={[styles.changeBtn, { borderColor: colors.border }]}
-                >
-                  <AppText variant="captionBold" color={colors.textSecondary}>
-                    Change Image
-                  </AppText>
-                </Pressable>
-              </View>
-            </AppCard>
-          ) : (
-            <AppCard style={styles.uploadArea}>
+        <ScrollView
+          contentContainerStyle={[styles.main, { maxWidth: contentWidth }]}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.uploadSection}>
+            <View style={styles.hero}>
+              <AppText style={styles.heading}>Import Your Schedule</AppText>
+              <AppText style={styles.subheading}>
+                Sync your roster in seconds using AI extraction.
+              </AppText>
+            </View>
+
+            <View style={styles.uploadCard}>
+              <View style={styles.orbTopRight} />
+              <View style={styles.orbBottomLeft} />
+
               <View style={styles.uploadInner}>
-                <View
-                  style={[
-                    styles.uploadIconCircle,
-                    { backgroundColor: colors.accent + "18" },
-                  ]}
-                >
-                  <IconSymbol
-                    name="camera.fill"
-                    size={36}
-                    color={colors.accent}
-                  />
-                </View>
-                <AppText variant="subheading" center>
-                  Upload Schedule Image
-                </AppText>
-                <AppText
-                  variant="body"
-                  color={colors.textSecondary}
-                  center
-                  style={styles.uploadHint}
-                >
-                  Take a photo or pick from your gallery. AI will extract your
-                  shifts automatically.
-                </AppText>
-                <View style={styles.uploadBtns}>
-                  <AppButton
-                    label="Take Photo"
-                    variant="primary"
-                    size="md"
-                    onPress={takePhoto}
-                    leftIcon={
-                      <IconSymbol name="camera.fill" size={18} color="#fff" />
-                    }
-                    style={styles.uploadBtn}
-                  />
-                  <AppButton
-                    label="Pick from Gallery"
-                    variant="outline"
-                    size="md"
-                    onPress={pickImage}
-                    leftIcon={
-                      <IconSymbol
-                        name="photo.fill"
-                        size={18}
-                        color={colors.accent}
-                      />
-                    }
-                    style={styles.uploadBtn}
-                  />
-                </View>
-              </View>
-            </AppCard>
-          )}
-        </FadeInView>
+                <View style={styles.uploadIntro}>
+                  <View style={styles.uploadIcon}>
+                    <IconSymbol
+                      name="cloud.upload.fill"
+                      size={42}
+                      color={palette.primary}
+                    />
+                  </View>
 
-        {/* ── Workplace Picker ── */}
-
-        {/* ── Process Button ── */}
-        {imageUri && detectedShiftCount === 0 && (
-          <FadeInView delay={150}>
-            <AppButton
-              label={processing ? "Analyzing..." : "Scan Schedule"}
-              variant="primary"
-              size="lg"
-              fullWidth
-              disabled={processing}
-              onPress={processImage}
-              leftIcon={
-                processing ? (
-                  <ActivityIndicator size="small" color="#fff" />
-                ) : (
-                  <IconSymbol
-                    name="doc.text.viewfinder"
-                    size={20}
-                    color="#fff"
-                  />
-                )
-              }
-              style={styles.scanBtn}
-            />
-          </FadeInView>
-        )}
-
-        {/* ── OCR Result: Name Found Status ── */}
-        {scanCompleted && (
-          <FadeInView delay={50}>
-            <View style={styles.aiBadge}>
-              <AppText variant="captionBold" color={colors.accent}>
-                🤖 Powered by Gemini AI
-              </AppText>
-            </View>
-
-            <AppCard style={styles.statusCard}>
-              <View style={styles.statusRow}>
-                <IconSymbol
-                  name={
-                    detectedShiftCount > 0
-                      ? needsReview
-                        ? "exclamationmark.triangle.fill"
-                        : "checkmark.circle.fill"
-                      : "exclamationmark.triangle.fill"
-                  }
-                  size={22}
-                  color={
-                    detectedShiftCount > 0
-                      ? needsReview
-                        ? colors.warning
-                        : colors.success
-                      : colors.warning
-                  }
-                />
-
-                <View style={styles.flex1}>
-                  <AppText
-                    variant="bodyBold"
-                    color={
-                      detectedShiftCount > 0
-                        ? needsReview
-                          ? colors.warning
-                          : colors.success
-                        : colors.warning
-                    }
-                  >
-                    {detectedShiftCount > 0
-                      ? `${detectedShiftCount} shift${
-                          detectedShiftCount !== 1 ? "s were" : " was"
-                        } detected. Review the details below before adding.`
-                      : "Try a clearer image or confirm that the screenshot contains visible shift dates and times."}
-                  </AppText>
-
-                  <AppText variant="caption" color={colors.textSecondary}>
-                    {detectedShiftCount > 0
-                      ? assumedPersonal && !nameFound
-                        ? `Your name is not visible, but ${detectedShiftCount} shift${
-                            detectedShiftCount !== 1 ? "s were" : " was"
-                          } found. Review them before adding.`
-                        : needsReview
-                          ? `${detectedShiftCount} shift${
-                              detectedShiftCount !== 1 ? "s were" : " was"
-                            } detected. Confirm the dates and times before saving.`
-                          : `${detectedShiftCount} shift${
-                              detectedShiftCount !== 1 ? "s are" : " is"
-                            } ready to add.`
-                      : "Try a clearer image or confirm that the screenshot contains visible shift dates and times."}
-                  </AppText>
-                </View>
-              </View>
-            </AppCard>
-          </FadeInView>
-        )}
-
-        {/* ── Raw Text Preview ── */}
-        {rawText.length > 0 && (
-          <FadeInView delay={100}>
-            <AppText variant="subheading" style={styles.sectionTitle}>
-              Extracted Text
-            </AppText>
-            <AppCard style={styles.rawTextCard}>
-              <AppText
-                variant="caption"
-                color={colors.textSecondary}
-                style={styles.rawText}
-              >
-                {rawText}
-              </AppText>
-            </AppCard>
-          </FadeInView>
-        )}
-
-        {/* ── Parsed Shifts ── */}
-        {detectedShiftCount > 0 && (
-          <FadeInView delay={150}>
-            <View style={styles.sectionHeader}>
-              <AppText variant="subheading">Detected Shifts</AppText>
-              <AppText variant="caption" color={colors.textSecondary}>
-                {selectedIds.size}/{detectedShiftCount} selected
-              </AppText>
-            </View>
-
-            {parsedShifts.map((shift, idx) => {
-              const selected = selectedIds.has(shift.id);
-              return (
-                <FadeInView key={shift.id} delay={180 + idx * 60}>
-                  <Pressable onPress={() => toggleShift(shift.id)}>
-                    <AppCard
-                      style={[
-                        styles.shiftCard,
-                        {
-                          borderColor: selected
-                            ? colors.accent + "66"
-                            : colors.border,
-                          opacity: selected ? 1 : 0.6,
-                        },
-                      ]}
-                      // accentBorder={selected ? selectedWp?.color : undefined}
-                    >
-                      <View style={styles.shiftRow}>
-                        {/* Checkbox */}
-                        <View
-                          style={[
-                            styles.checkbox,
-                            {
-                              backgroundColor: selected
-                                ? colors.accent
-                                : "transparent",
-                              borderColor: selected
-                                ? colors.accent
-                                : colors.border,
-                            },
-                          ]}
-                        >
-                          {selected && (
-                            <IconSymbol
-                              name="checkmark"
-                              size={14}
-                              color="#fff"
-                            />
-                          )}
-                        </View>
-                        <View style={styles.flex1}>
-                          <AppText variant="bodyBold">{shift.title}</AppText>
-                          <AppText
-                            variant="caption"
-                            color={colors.textSecondary}
-                          >
-                            {fmtDate(shift.startDateTime)} ·{" "}
-                            {fmtTime(shift.startDateTime)} –{" "}
-                            {fmtTime(shift.endDateTime)} ({durHrs(shift)}h)
-                          </AppText>
-                          <View style={styles.wpLabel}>
-                            <View
-                              style={[
-                                styles.wpDot,
-                                {
-                                  backgroundColor: currentAssignmentColor,
-                                },
-                              ]}
-                            />
-                            <AppText
-                              variant="label"
-                              color={colors.textSecondary}
-                            >
-                              {currentAssignmentLabel} · Pending
-                            </AppText>
-                          </View>
-                        </View>
-                      </View>
-                    </AppCard>
-                  </Pressable>
-                </FadeInView>
-              );
-            })}
-
-            {/* ── Shift Assignment ── */}
-            {detectedShiftCount > 0 && (
-              <FadeInView delay={100}>
-                <AppText variant="subheading" style={styles.sectionTitle}>
-                  Assign These Shifts
-                </AppText>
-
-                <AppText
-                  variant="caption"
-                  color={colors.textSecondary}
-                  style={styles.workplaceHelp}
-                >
-                  Select a regular workplace, use a temporary company name, or
-                  leave the shifts unassigned for now.
-                </AppText>
-
-                {/* Saved workplaces */}
-                {workplaces.length > 0 && (
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    style={styles.wpScroll}
-                    contentContainerStyle={styles.wpScrollContent}
-                  >
-                    {workplaces.map((workplace) => {
-                      const selected =
-                        associationType === "workplace" &&
-                        workplaceId === workplace.id;
-
-                      return (
-                        <Pressable
-                          key={workplace.id}
-                          onPress={() => {
-                            setAssociationType("workplace");
-                            setWorkplaceId(workplace.id);
-                            setTemporaryWorkplaceName("");
-                          }}
-                          style={[
-                            styles.wpChip,
-                            {
-                              backgroundColor: selected
-                                ? workplace.color + "22"
-                                : colors.surface,
-                              borderColor: selected
-                                ? workplace.color
-                                : colors.border,
-                            },
-                          ]}
-                        >
-                          <View
-                            style={[
-                              styles.wpDot,
-                              {
-                                backgroundColor: workplace.color,
-                              },
-                            ]}
-                          />
-
-                          <AppText
-                            variant="captionBold"
-                            color={
-                              selected ? workplace.color : colors.textSecondary
-                            }
-                          >
-                            {workplace.name}
-                          </AppText>
-
-                          {selected && (
-                            <IconSymbol
-                              name="checkmark.circle.fill"
-                              size={16}
-                              color={workplace.color}
-                            />
-                          )}
-                        </Pressable>
-                      );
-                    })}
-                  </ScrollView>
-                )}
-
-                {/* Add permanent workplace */}
-                <Pressable
-                  onPress={() => router.push("/add-workplace")}
-                  style={[
-                    styles.addAnotherWorkplace,
-                    {
-                      backgroundColor: colors.surface,
-                      borderColor: colors.border,
-                    },
-                  ]}
-                >
-                  <IconSymbol
-                    name="plus.circle.fill"
-                    size={18}
-                    color={colors.accent}
-                  />
-
-                  <View style={styles.flex1}>
-                    <AppText variant="bodyBold" color={colors.accent}>
-                      Add Saved Workplace
-                    </AppText>
-
-                    <AppText variant="caption" color={colors.textSecondary}>
-                      Use for a regular employer such as BoatHouse or Walmart.
+                  <View>
+                    <AppText style={styles.cardTitle}>Drop file here</AppText>
+                    <AppText style={styles.cardSubTitle}>
+                      PNG, JPG, or PDF up to 10MB
                     </AppText>
                   </View>
-                </Pressable>
+                </View>
 
-                {/* Temporary / unassigned */}
-                <View style={styles.assignmentOptions}>
+                <View style={styles.uploadGrid}>
                   <Pressable
-                    onPress={() => {
-                      setAssociationType("temporary");
-                      setWorkplaceId("");
-                    }}
-                    style={[
-                      styles.assignmentOption,
-                      {
-                        borderColor:
-                          associationType === "temporary"
-                            ? colors.accent
-                            : colors.border,
-                        backgroundColor:
-                          associationType === "temporary"
-                            ? colors.accent + "18"
-                            : colors.surface,
-                      },
+                    accessibilityRole="button"
+                    onPress={handlePickImage}
+                    style={({ pressed }) => [
+                      styles.pickerButton,
+                      pressed && styles.pickerButtonPressed,
                     ]}
                   >
-                    <View style={styles.assignmentOptionRow}>
-                      <IconSymbol
-                        name="clock.fill"
-                        size={20}
-                        color={
-                          associationType === "temporary"
-                            ? colors.accent
-                            : colors.textSecondary
-                        }
-                      />
-
-                      <View style={styles.flex1}>
-                        <AppText variant="bodyBold">
-                          Temporary / One-time Shift
-                        </AppText>
-
-                        <AppText variant="caption" color={colors.textSecondary}>
-                          For agency, security, event, or occasional work.
-                        </AppText>
-                      </View>
-
-                      {associationType === "temporary" && (
-                        <IconSymbol
-                          name="checkmark.circle.fill"
-                          size={20}
-                          color={colors.accent}
-                        />
-                      )}
-                    </View>
+                    <IconSymbol
+                      name="photo.on.rectangle"
+                      size={24}
+                      color={palette.primary}
+                    />
+                    <AppText style={styles.pickerLabel}>Gallery</AppText>
                   </Pressable>
 
-                  {associationType === "temporary" && (
-                    <TextInput
-                      value={temporaryWorkplaceName}
-                      onChangeText={setTemporaryWorkplaceName}
-                      placeholder="Agency or company name (optional)"
-                      placeholderTextColor={colors.textSecondary}
-                      style={[
-                        styles.tempInput,
-                        {
-                          color: colors.text,
-                          backgroundColor: colors.surface,
-                          borderColor: colors.border,
-                        },
-                      ]}
-                    />
-                  )}
-
                   <Pressable
-                    onPress={() => {
-                      setAssociationType("unassigned");
-                      setWorkplaceId("");
-                      setTemporaryWorkplaceName("");
-                    }}
-                    style={[
-                      styles.assignmentOption,
-                      {
-                        borderColor:
-                          associationType === "unassigned"
-                            ? colors.accent
-                            : colors.border,
-                        backgroundColor:
-                          associationType === "unassigned"
-                            ? colors.accent + "18"
-                            : colors.surface,
-                      },
+                    accessibilityRole="button"
+                    onPress={handleTakePhoto}
+                    style={({ pressed }) => [
+                      styles.pickerButton,
+                      pressed && styles.pickerButtonPressed,
                     ]}
                   >
-                    <View style={styles.assignmentOptionRow}>
-                      <IconSymbol
-                        name="questionmark.circle.fill"
-                        size={20}
-                        color={
-                          associationType === "unassigned"
-                            ? colors.accent
-                            : colors.textSecondary
-                        }
-                      />
-
-                      <View style={styles.flex1}>
-                        <AppText variant="bodyBold">Unassigned for Now</AppText>
-
-                        <AppText variant="caption" color={colors.textSecondary}>
-                          Save the shifts now and assign a workplace later.
-                        </AppText>
-                      </View>
-
-                      {associationType === "unassigned" && (
-                        <IconSymbol
-                          name="checkmark.circle.fill"
-                          size={20}
-                          color={colors.accent}
-                        />
-                      )}
-                    </View>
+                    <IconSymbol
+                      name="camera.fill"
+                      size={24}
+                      color={palette.primary}
+                    />
+                    <AppText style={styles.pickerLabel}>Camera</AppText>
                   </Pressable>
                 </View>
-              </FadeInView>
-            )}
+              </View>
+            </View>
 
-            {/* Add Selected Button */}
-            <View style={styles.addRow}>
-              <AppButton
-                label={`Add ${selectedIds.size} Shift${selectedIds.size !== 1 ? "s" : ""}`}
-                variant="primary"
-                size="lg"
-                fullWidth
-                onPress={addSelectedShifts}
-                disabled={adding}
-                leftIcon={
-                  <IconSymbol name="plus.circle.fill" size={20} color="#fff" />
-                }
+            <Pressable
+              accessibilityRole="button"
+              onPress={handleScan}
+              style={({ pressed }) => [
+                styles.cta,
+                pressed && styles.ctaPressed,
+              ]}
+            >
+              <LinearGradient
+                colors={[
+                  tokens.primaryGradientStart,
+                  tokens.primaryGradientEnd,
+                ]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.ctaGradient}
+              >
+                <IconSymbol
+                  name="sparkles"
+                  size={20}
+                  color={palette.primaryOn}
+                />
+                <AppText style={styles.ctaText}>Scan Schedule</AppText>
+              </LinearGradient>
+            </Pressable>
+          </View>
+        </ScrollView>
+
+        <View style={styles.bottomNav} pointerEvents="box-none">
+          <View style={styles.bottomNavInner}>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => router.push("/(tabs)")}
+              style={styles.navItem}
+            >
+              <IconSymbol
+                name="house"
+                size={22}
+                color={alphaColor(palette.textSecondary, 0.7)}
+              />
+              <AppText style={styles.navLabel}>Home</AppText>
+            </Pressable>
+
+            <View style={styles.navActive}>
+              <IconSymbol
+                name="clock.fill"
+                size={22}
+                color={palette.primaryOn}
               />
             </View>
-          </FadeInView>
-        )}
 
-        {/* ── Cancel ── */}
-        <View style={styles.cancelRow}>
-          <AppButton
-            label="Cancel"
-            variant="ghost"
-            size="md"
-            onPress={() => router.back()}
-          />
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => router.push("/(tabs)/calendar")}
+              style={styles.navItem}
+            >
+              <IconSymbol
+                name="calendar"
+                size={22}
+                color={alphaColor(palette.textSecondary, 0.7)}
+              />
+              <AppText style={styles.navLabel}>Calendar</AppText>
+            </Pressable>
+
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => router.push("/(tabs)/workplaces")}
+              style={styles.navItem}
+            >
+              <IconSymbol
+                name="briefcase.fill"
+                size={22}
+                color={alphaColor(palette.textSecondary, 0.7)}
+              />
+              <AppText style={styles.navLabel}>Jobs</AppText>
+            </Pressable>
+
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => router.push("/(tabs)/settings")}
+              style={styles.navItem}
+            >
+              <IconSymbol
+                name="gearshape.fill"
+                size={22}
+                color={alphaColor(palette.textSecondary, 0.7)}
+              />
+              <AppText style={styles.navLabel}>Settings</AppText>
+            </Pressable>
+          </View>
         </View>
-
-        <View style={styles.bottomSpacer} />
-      </ScrollView>
+      </View>
     </AppScreen>
   );
 }
-
-// ─── Styles ─────────────────────────────────────────────────────────
-const styles = StyleSheet.create({
-  scroll: { paddingHorizontal: 20, paddingTop: 8 },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 20,
-    gap: 8,
-  },
-  headerSpacer: { width: 24 },
-  flex1: { flex: 1 },
-
-  // Upload area
-  uploadArea: { marginBottom: 16 },
-  uploadInner: { alignItems: "center", paddingVertical: 28, gap: 10 },
-  uploadIconCircle: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 8,
-  },
-  uploadHint: { paddingHorizontal: 16, marginBottom: 12 },
-  uploadBtns: { flexDirection: "row", gap: 10 },
-  uploadBtn: { flex: 1 },
-
-  // Image preview
-  imageCard: { marginBottom: 16, padding: 0, overflow: "hidden" },
-  preview: { width: "100%", height: 220, borderRadius: 12 },
-  imageActions: {
-    flexDirection: "row",
-    justifyContent: "center",
-    padding: 12,
-  },
-  changeBtn: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-    borderWidth: 1,
-  },
-
-  // Section
-  sectionTitle: { marginBottom: 10, marginTop: 8 },
-  sectionHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 10,
-    marginTop: 8,
-  },
-
-  // Workplace picker
-  wpScroll: { marginBottom: 16 },
-  wpChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    marginRight: 8,
-  },
-  wpDot: { width: 8, height: 8, borderRadius: 4 },
-
-  // Scan button
-  scanBtn: { marginBottom: 16, marginTop: 4 },
-
-  // Status card
-  statusCard: { marginBottom: 12, borderWidth: 1 },
-  statusRow: { flexDirection: "row", alignItems: "center", gap: 12 },
-
-  // Raw text
-  rawTextCard: { marginBottom: 16, padding: 14 },
-  rawText: { fontFamily: "monospace", lineHeight: 18 },
-
-  // Shift cards
-  shiftCard: { marginBottom: 10, borderWidth: 1 },
-  shiftRow: { flexDirection: "row", alignItems: "center", gap: 14 },
-  checkbox: {
-    width: 24,
-    height: 24,
-    borderRadius: 6,
-    borderWidth: 2,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  wpLabel: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    marginTop: 4,
-  },
-
-  // Add / Cancel
-  addRow: { marginTop: 8, marginBottom: 12 },
-  cancelRow: { alignItems: "center", marginTop: 4, marginBottom: 8 },
-  bottomSpacer: { height: 60 },
-  aiBadge: {
-    alignSelf: "center",
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 8,
-    marginBottom: 8,
-  },
-  noWorkplaceCard: {
-    marginBottom: 16,
-  },
-
-  noWorkplaceTopRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-
-  noWorkplaceIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 16,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  noWorkplaceDescription: {
-    marginTop: 4,
-    lineHeight: 18,
-  },
-
-  addWorkplaceButton: {
-    marginTop: 16,
-  },
-
-  workplaceHelp: {
-    marginBottom: 10,
-  },
-
-  wpScrollContent: {
-    paddingRight: 12,
-  },
-
-  addAnotherWorkplace: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    borderWidth: 1,
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    marginBottom: 12,
-  },
-  assignmentOptionRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-  assignmentOptions: {
-    gap: 10,
-    marginBottom: 16,
-  },
-
-  assignmentOption: {
-    borderWidth: 1,
-    borderRadius: 14,
-    padding: 14,
-    gap: 4,
-  },
-
-  tempInput: {
-    minHeight: 50,
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    marginBottom: 16,
-  },
-});
