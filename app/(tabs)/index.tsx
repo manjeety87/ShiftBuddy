@@ -17,6 +17,7 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useShiftStore } from "@/store";
 import type { Shift } from "@/types";
+import { getShiftWorkplaceLabel } from "@/utils/shift-labels";
 
 const fmtTime = (iso: string) =>
   new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -81,6 +82,10 @@ export default function HomeScreen() {
     ? workplaces.find((workplace) => workplace.id === nextShift.workplaceId)
     : undefined;
 
+  const nextShiftLabel = nextShift
+    ? getShiftWorkplaceLabel(nextShift, workplaces)
+    : "";
+
   const todayShifts = shifts
     .filter(
       (shift) => new Date(shift.startDateTime).toDateString() === todayKey,
@@ -103,16 +108,13 @@ export default function HomeScreen() {
     ? shifts.find((shift) => shift.id === topConflict.shiftBId)
     : undefined;
 
-  const conflictWorkplaceA = conflictShiftA
-    ? workplaces.find(
-        (workplace) => workplace.id === conflictShiftA.workplaceId,
-      )
-    : undefined;
-  const conflictWorkplaceB = conflictShiftB
-    ? workplaces.find(
-        (workplace) => workplace.id === conflictShiftB.workplaceId,
-      )
-    : undefined;
+  const conflictLabelA = conflictShiftA
+    ? getShiftWorkplaceLabel(conflictShiftA, workplaces)
+    : "";
+
+  const conflictLabelB = conflictShiftB
+    ? getShiftWorkplaceLabel(conflictShiftB, workplaces)
+    : "";
 
   const weekStart = new Date(now);
   weekStart.setHours(0, 0, 0, 0);
@@ -304,7 +306,7 @@ export default function HomeScreen() {
                   color={tokens.surface_darkest}
                   style={styles.heroTitle}
                 >
-                  {nextWorkplace?.name ?? "Upcoming Shift"}
+                  {nextShiftLabel || "Upcoming Shift"}
                 </AppText>
                 <AppText
                   variant="bodyBold"
@@ -462,7 +464,7 @@ export default function HomeScreen() {
                     >
                       <View>
                         <AppText variant="captionBold" color={tokens.primary}>
-                          {conflictWorkplaceA?.name ?? "Workplace"}
+                          {conflictLabelA ?? "Unassigned Shift"}
                         </AppText>
                         <AppText variant="bodyBold" color={tokens.textPrimary}>
                           {conflictShiftA.title}
@@ -484,7 +486,7 @@ export default function HomeScreen() {
                     >
                       <View>
                         <AppText variant="captionBold" color={tokens.tertiary}>
-                          {conflictWorkplaceB?.name ?? "Workplace"}
+                          {conflictLabelB ?? "Unassigned Shift"}
                         </AppText>
                         <AppText variant="bodyBold" color={tokens.textPrimary}>
                           {conflictShiftB.title}
@@ -562,6 +564,18 @@ export default function HomeScreen() {
                   (item) => item.id === shift.workplaceId,
                 );
 
+                const workplaceLabel = getShiftWorkplaceLabel(
+                  shift,
+                  workplaces,
+                );
+
+                const markerColor =
+                  shift.associationType === "temporary"
+                    ? tokens.tertiary
+                    : shift.associationType === "unassigned"
+                      ? tokens.outline
+                      : (workplace?.color ?? tokens.primary);
+
                 const ended =
                   new Date(shift.endDateTime).getTime() < now.getTime();
                 const ongoing =
@@ -582,8 +596,7 @@ export default function HomeScreen() {
                           style={[
                             styles.scheduleMarker,
                             {
-                              backgroundColor:
-                                workplace?.color ?? tokens.primary,
+                              backgroundColor: markerColor,
                               opacity: ended ? 0.45 : 1,
                             },
                           ]}
@@ -593,7 +606,7 @@ export default function HomeScreen() {
                             variant="bodyBold"
                             color={tokens.textPrimary}
                           >
-                            {workplace?.name ?? "Workplace"}
+                            {workplaceLabel}
                           </AppText>
                           <AppText
                             variant="caption"
