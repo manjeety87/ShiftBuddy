@@ -72,7 +72,7 @@ export default function ConflictsScreen() {
   };
 
   return (
-    <AppScreen safeTop>
+    <AppScreen>
       <ScrollView
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
@@ -89,7 +89,7 @@ export default function ConflictsScreen() {
         </View>
 
         {/* ── Summary ── */}
-        <AppCard style={styles.summaryCard} padding={16}>
+        <AppCard style={[styles.summaryCard, { padding: 16 }]}>
           <View style={styles.summaryRow}>
             <View style={styles.summaryItem}>
               <IconSymbol
@@ -425,7 +425,7 @@ export default function ConflictsScreen() {
 
         {/* ── All-resolved celebration ── */}
         {conflicts.length > 0 && unresolved.length === 0 && (
-          <AppCard style={styles.celebrationCard} padding={20}>
+          <AppCard style={styles.celebrationCard}>
             <View style={styles.emptyInner}>
               <AppText variant="heading" center>
                 All Clear! ✅
