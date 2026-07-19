@@ -140,6 +140,7 @@ export default function AddShiftScreen() {
       status,
       createdAt: now,
       updatedAt: now,
+      associationType: "workplace",
     };
 
     addShift(shift);

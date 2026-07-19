@@ -48,6 +48,7 @@ interface ShiftState {
   addShift: (shift: Shift) => void;
   updateShift: (id: string, partial: Partial<Shift>) => void;
   removeShift: (id: string) => void;
+  removeShifts: (ids: string[]) => void;
   cancelShift: (id: string) => void;
 
   // ── Workplaces ──
@@ -134,6 +135,24 @@ export const useShiftStore = create<ShiftState>((set, get) => ({
     });
   },
 
+  removeShifts: (ids) => {
+    if (ids.length === 0) return;
+
+    const idsToRemove = new Set(ids);
+
+    set((state) => {
+      const updated = state.shifts.filter(
+        (shift) => !idsToRemove.has(shift.id),
+      );
+
+      save(KEYS.shifts, updated).catch(console.warn);
+
+      return {
+        shifts: updated,
+        conflicts: detectConflicts(updated),
+      };
+    });
+  },
   cancelShift: (id) => {
     set((s) => {
       const updated = s.shifts.map((sh) =>
