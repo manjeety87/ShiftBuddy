@@ -1,897 +1,706 @@
+import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
-import React, { useCallback, useMemo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, View } from "react-native";
+import React, { useMemo, useState } from "react";
+import { Image, Pressable, ScrollView, StyleSheet, View } from "react-native";
 
-import { AnimatedPress } from "@/components/ui/animated-press";
-import { AppBadge } from "@/components/ui/app-badge";
-import { AppCard } from "@/components/ui/app-card";
 import { AppScreen } from "@/components/ui/app-screen";
 import { AppText } from "@/components/ui/app-text";
-import { FadeInView } from "@/components/ui/fade-in-view";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useShiftStore } from "@/store";
-import type { Shift } from "@/types";
+import type { ThemeTokens } from "@/theme";
 
-// ─── Date helpers ───────────────────────────────────────────────────
-const DAY_MS = 86_400_000;
-type ViewMode = "week" | "month";
-
-const startOfWeek = (d: Date): Date => {
-  const copy = new Date(d);
-  copy.setHours(0, 0, 0, 0);
-  const day = copy.getDay();
-  copy.setDate(copy.getDate() - day);
-  return copy;
+type CalendarCell = {
+  day: number;
+  muted?: boolean;
+  dot?: boolean;
 };
 
-const startOfMonth = (d: Date): Date => {
-  const copy = new Date(d);
-  copy.setDate(1);
-  copy.setHours(0, 0, 0, 0);
-  return copy;
+const alphaColor = (hex: string, alpha: number) => {
+  const normalized = hex.replace("#", "");
+  const value =
+    normalized.length === 3
+      ? normalized
+          .split("")
+          .map((character) => character + character)
+          .join("")
+      : normalized;
+
+  const red = Number.parseInt(value.slice(0, 2), 16);
+  const green = Number.parseInt(value.slice(2, 4), 16);
+  const blue = Number.parseInt(value.slice(4, 6), 16);
+
+  return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
 };
 
-const daysInMonth = (d: Date): number =>
-  new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
-
-const fmtTime = (iso: string) =>
-  new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-
-const isSameDay = (a: Date, b: Date) => a.toDateString() === b.toDateString();
-
-const shiftDur = (s: Shift) =>
-  (
-    (new Date(s.endDateTime).getTime() - new Date(s.startDateTime).getTime()) /
-    3_600_000
-  ).toFixed(1);
+const buildStyles = (tokens: ThemeTokens) =>
+  StyleSheet.create({
+    screen: {
+      flex: 1,
+      backgroundColor: tokens.background,
+    },
+    meshTopLeft: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      width: 240,
+      height: 240,
+      borderRadius: 120,
+      backgroundColor: alphaColor(tokens.primary, 0.05),
+    },
+    meshTopRight: {
+      position: "absolute",
+      top: 24,
+      right: 0,
+      width: 220,
+      height: 220,
+      borderRadius: 110,
+      backgroundColor: alphaColor(tokens.primary, 0.03),
+    },
+    meshBottomRight: {
+      position: "absolute",
+      right: 0,
+      bottom: 120,
+      width: 220,
+      height: 220,
+      borderRadius: 110,
+      backgroundColor: alphaColor(tokens.primary, 0.05),
+    },
+    meshBottomLeft: {
+      position: "absolute",
+      left: 0,
+      bottom: 120,
+      width: 220,
+      height: 220,
+      borderRadius: 110,
+      backgroundColor: alphaColor(tokens.primary, 0.14),
+    },
+    header: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      zIndex: 50,
+      backgroundColor: alphaColor(tokens.surface, 0.8),
+      borderBottomWidth: 1,
+      borderBottomColor: alphaColor(tokens.border, 0.12),
+    },
+    headerInner: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      paddingHorizontal: 24,
+      paddingVertical: 16,
+      width: "100%",
+      maxWidth: 1120,
+      alignSelf: "center",
+    },
+    brandRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+    },
+    avatar: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      overflow: "hidden",
+      backgroundColor: alphaColor(tokens.primary, 0.2),
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    brandTitle: {
+      color: tokens.primary,
+      fontFamily: "Manrope",
+      fontSize: 20,
+      lineHeight: 24,
+      fontWeight: "800",
+      letterSpacing: -0.4,
+    },
+    headerButton: {
+      padding: 8,
+      borderRadius: 999,
+    },
+    main: {
+      flex: 1,
+      width: "100%",
+      maxWidth: 1120,
+      alignSelf: "center",
+      paddingHorizontal: 24,
+      paddingTop: 96,
+      paddingBottom: 180,
+    },
+    overview: {
+      width: "100%",
+      gap: 24,
+      marginBottom: 24,
+    },
+    overviewLeft: {
+      gap: 4,
+    },
+    eyebrow: {
+      color: tokens.textTertiary,
+      fontFamily: "Inter",
+      fontSize: 10,
+      lineHeight: 12,
+      fontWeight: "600",
+      letterSpacing: 1.8,
+      textTransform: "uppercase",
+    },
+    titleRow: {
+      flexDirection: "row",
+      alignItems: "baseline",
+      gap: 12,
+      flexWrap: "wrap",
+    },
+    monthTitle: {
+      color: tokens.textPrimary,
+      fontFamily: "Manrope",
+      fontSize: 38,
+      lineHeight: 44,
+      fontWeight: "800",
+      letterSpacing: -1,
+    },
+    summaryText: {
+      color: tokens.primary,
+      fontFamily: "Inter",
+      fontSize: 18,
+      lineHeight: 24,
+      fontWeight: "700",
+    },
+    navRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "flex-end",
+      gap: 8,
+    },
+    navButton: {
+      alignItems: "center",
+      justifyContent: "center",
+      padding: 12,
+      borderRadius: 999,
+      backgroundColor: "transparent",
+    },
+    todayButton: {
+      paddingHorizontal: 24,
+      paddingVertical: 10,
+      borderRadius: 999,
+      backgroundColor: tokens.surface,
+    },
+    calendarShell: {
+      width: "100%",
+      borderRadius: 24,
+      padding: 24,
+      backgroundColor: alphaColor(tokens.surface, 0.96),
+      shadowColor: tokens.primary,
+      shadowOpacity: 0.04,
+      shadowRadius: 24,
+      shadowOffset: { width: 0, height: 12 },
+      elevation: 3,
+      marginBottom: 24,
+    },
+    weekdayRow: {
+      flexDirection: "row",
+      paddingBottom: 16,
+      borderBottomWidth: 1,
+      borderBottomColor: alphaColor(tokens.border, 0.1),
+    },
+    weekdayCell: {
+      flex: 1,
+      alignItems: "center",
+    },
+    weekdayLabel: {
+      color: tokens.textSecondary,
+      fontFamily: "Inter",
+      fontSize: 10,
+      lineHeight: 12,
+      fontWeight: "700",
+      letterSpacing: 1.6,
+      textTransform: "uppercase",
+    },
+    monthGrid: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      marginTop: 16,
+    },
+    monthCell: {
+      width: "14.285714%",
+      minHeight: 54,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingVertical: 6,
+    },
+    mutedCell: {
+      opacity: 0.2,
+    },
+    selectedCell: {
+      width: 48,
+      height: 48,
+      borderRadius: 24,
+      backgroundColor: tokens.primary,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    dayNumber: {
+      color: tokens.textPrimary,
+      fontFamily: "Inter",
+      fontSize: 18,
+      lineHeight: 24,
+      fontWeight: "500",
+    },
+    selectedDayNumber: {
+      color: tokens.textOnPrimary,
+      fontWeight: "700",
+    },
+    dayDot: {
+      width: 6,
+      height: 6,
+      borderRadius: 3,
+      marginTop: 4,
+      backgroundColor: tokens.primary,
+    },
+    selectedDot: {
+      backgroundColor: tokens.textOnPrimary,
+      width: 4,
+      height: 4,
+      borderRadius: 2,
+      marginTop: 4,
+    },
+    agendaPanel: {
+      width: "100%",
+      borderRadius: 32,
+      padding: 32,
+      backgroundColor: tokens.glassBackgroundStrong,
+      borderWidth: 1,
+      borderColor: alphaColor(tokens.surface, 0.4),
+      shadowColor: tokens.primary,
+      shadowOpacity: 0.08,
+      shadowRadius: 24,
+      shadowOffset: { width: 0, height: 12 },
+      elevation: 4,
+      gap: 24,
+    },
+    agendaHeader: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      gap: 16,
+    },
+    agendaEyebrow: {
+      color: tokens.primary,
+      fontFamily: "Inter",
+      fontSize: 12,
+      lineHeight: 16,
+      fontWeight: "700",
+      letterSpacing: 1.8,
+      textTransform: "uppercase",
+    },
+    agendaTitle: {
+      color: tokens.textPrimary,
+      fontFamily: "Manrope",
+      fontSize: 24,
+      lineHeight: 30,
+      fontWeight: "700",
+      letterSpacing: -0.4,
+    },
+    agendaPill: {
+      paddingHorizontal: 16,
+      paddingVertical: 10,
+      borderRadius: 999,
+      backgroundColor: alphaColor(tokens.primary, 0.1),
+    },
+    agendaPillText: {
+      color: tokens.primary,
+      fontFamily: "Inter",
+      fontSize: 14,
+      lineHeight: 20,
+      fontWeight: "700",
+    },
+    timeline: {
+      position: "relative",
+      gap: 32,
+      marginTop: 8,
+    },
+    timelineLine: {
+      position: "absolute",
+      left: 12,
+      top: 8,
+      bottom: 8,
+      width: 1,
+      backgroundColor: alphaColor(tokens.border, 0.3),
+    },
+    timelineItem: {
+      position: "relative",
+      paddingLeft: 48,
+    },
+    timelineDot: {
+      position: "absolute",
+      left: 6,
+      top: 16,
+      width: 12,
+      height: 12,
+      borderRadius: 6,
+      backgroundColor: tokens.primary,
+      borderWidth: 4,
+      borderColor: tokens.surface,
+    },
+    shiftCard: {
+      borderRadius: 24,
+      borderLeftWidth: 4,
+      borderLeftColor: tokens.primary,
+      backgroundColor: alphaColor(tokens.surface, 0.82),
+      padding: 20,
+      shadowColor: tokens.shadow,
+      shadowOpacity: 0.05,
+      shadowRadius: 12,
+      shadowOffset: { width: 0, height: 4 },
+      elevation: 1,
+    },
+    shiftHeader: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "flex-start",
+      gap: 12,
+      marginBottom: 8,
+    },
+    shiftTitle: {
+      color: tokens.textPrimary,
+      fontFamily: "Manrope",
+      fontSize: 18,
+      lineHeight: 24,
+      fontWeight: "700",
+      flex: 1,
+    },
+    timePill: {
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 8,
+      backgroundColor: alphaColor(tokens.primary, 0.08),
+    },
+    timePillText: {
+      color: tokens.primary,
+      fontFamily: "Inter",
+      fontSize: 12,
+      lineHeight: 16,
+      fontWeight: "700",
+      letterSpacing: 0.5,
+      textTransform: "uppercase",
+    },
+    shiftLocation: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+    },
+    shiftLocationText: {
+      color: tokens.textSecondary,
+      fontFamily: "Inter",
+      fontSize: 13,
+      lineHeight: 18,
+      fontWeight: "500",
+    },
+    addSpecificTask: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+      alignSelf: "flex-start",
+      paddingVertical: 4,
+    },
+    addSpecificTaskText: {
+      color: tokens.primary,
+      fontFamily: "Inter",
+      fontSize: 14,
+      lineHeight: 20,
+      fontWeight: "700",
+    },
+    fab: {
+      position: "absolute",
+      right: 32,
+      bottom: 112,
+      zIndex: 60,
+      width: 64,
+      height: 64,
+      borderRadius: 32,
+      overflow: "hidden",
+      shadowColor: tokens.primary,
+      shadowOpacity: 0.3,
+      shadowRadius: 24,
+      shadowOffset: { width: 0, height: 8 },
+      elevation: 8,
+    },
+    fabInner: {
+      width: 64,
+      height: 64,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+  });
 
 const WEEKDAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-// ─── Component ──────────────────────────────────────────────────────
+const CALENDAR_CELLS: CalendarCell[] = [
+  { day: 27, muted: true },
+  { day: 28, muted: true },
+  { day: 29, muted: true },
+  { day: 30, muted: true },
+  { day: 31, muted: true },
+  { day: 1, dot: true },
+  { day: 2 },
+  { day: 3 },
+  { day: 4, dot: true },
+  { day: 5, dot: true },
+  { day: 6 },
+  { day: 7 },
+  { day: 8, dot: true },
+  { day: 9 },
+  { day: 10 },
+  { day: 11, dot: true },
+  { day: 12 },
+  { day: 13 },
+  { day: 14, dot: true },
+  { day: 15 },
+  { day: 16 },
+  { day: 17 },
+  { day: 18, dot: true },
+  { day: 19 },
+  { day: 20, dot: true },
+  { day: 21 },
+  { day: 22 },
+  { day: 23 },
+];
+
 export default function CalendarScreen() {
-  const { colors } = useAppTheme();
-  const shifts = useShiftStore((s) => s.shifts);
-  const workplaces = useShiftStore((s) => s.workplaces);
-  const conflicts = useShiftStore((s) => s.conflicts);
+  const { tokens } = useAppTheme();
+  const styles = useMemo(() => buildStyles(tokens), [tokens]);
+  const user = useShiftStore((state) => state.user);
 
-  const today = useMemo(() => {
-    const d = new Date();
-    d.setHours(0, 0, 0, 0);
-    return d;
-  }, []);
-
-  const [viewMode, setViewMode] = useState<ViewMode>("week");
-  const [weekOffset, setWeekOffset] = useState(0);
-  const [monthOffset, setMonthOffset] = useState(0);
-  const [selectedDate, setSelectedDate] = useState(today);
-
-  // ── Week view data ──
-  const weekDays = useMemo(() => {
-    const start = startOfWeek(today);
-    start.setDate(start.getDate() + weekOffset * 7);
-    return Array.from(
-      { length: 7 },
-      (_, i) => new Date(start.getTime() + i * DAY_MS),
-    );
-  }, [today, weekOffset]);
-
-  // ── Month view data ──
-  const monthData = useMemo(() => {
-    const ref = new Date(today);
-    ref.setMonth(ref.getMonth() + monthOffset);
-    const first = startOfMonth(ref);
-    const totalDays = daysInMonth(ref);
-    const startDay = first.getDay();
-
-    const cells: (Date | null)[] = [];
-    for (let i = 0; i < startDay; i++) cells.push(null);
-    for (let i = 1; i <= totalDays; i++) {
-      const d = new Date(ref.getFullYear(), ref.getMonth(), i);
-      cells.push(d);
-    }
-    while (cells.length % 7 !== 0) cells.push(null);
-
-    return { first, cells, ref };
-  }, [today, monthOffset]);
-
-  const weekLabel = useMemo(() => {
-    const first = weekDays[0];
-    const last = weekDays[6];
-    if (first.getMonth() === last.getMonth()) {
-      return first.toLocaleDateString(undefined, {
-        month: "long",
-        year: "numeric",
-      });
-    }
-    return `${first.toLocaleDateString(undefined, { month: "short" })} – ${last.toLocaleDateString(undefined, { month: "short", year: "numeric" })}`;
-  }, [weekDays]);
-
-  const monthLabel = useMemo(
-    () =>
-      monthData.ref.toLocaleDateString(undefined, {
-        month: "long",
-        year: "numeric",
-      }),
-    [monthData],
-  );
-
-  // Shift lookup map
-  const shiftDateMap = useMemo(() => {
-    const map = new Map<string, Shift[]>();
-    for (const s of shifts) {
-      if (s.status === "cancelled") continue;
-      const key = new Date(s.startDateTime).toDateString();
-      const arr = map.get(key) ?? [];
-      arr.push(s);
-      map.set(key, arr);
-    }
-    return map;
-  }, [shifts]);
-
-  // Shifts for selected day
-  const dayShifts = useMemo(
-    () =>
-      (shiftDateMap.get(selectedDate.toDateString()) ?? []).sort(
-        (a, b) =>
-          new Date(a.startDateTime).getTime() -
-          new Date(b.startDateTime).getTime(),
-      ),
-    [selectedDate, shiftDateMap],
-  );
-
-  const dayTotalHrs = dayShifts.reduce(
-    (acc, s) =>
-      acc +
-      (new Date(s.endDateTime).getTime() -
-        new Date(s.startDateTime).getTime()) /
-        3_600_000,
-    0,
-  );
-
-  // Conflicts for selected day
-  const dayConflictShiftIds = useMemo(() => {
-    const ids = new Set<string>();
-    const dayIds = new Set(dayShifts.map((s) => s.id));
-    for (const c of conflicts) {
-      if (!c.resolved && (dayIds.has(c.shiftAId) || dayIds.has(c.shiftBId))) {
-        ids.add(c.shiftAId);
-        ids.add(c.shiftBId);
-      }
-    }
-    return ids;
-  }, [dayShifts, conflicts]);
-
-  const goToday = useCallback(() => {
-    setWeekOffset(0);
-    setMonthOffset(0);
-    setSelectedDate(today);
-  }, [today]);
-
-  const navigateBack = () => {
-    if (viewMode === "week") setWeekOffset((o) => o - 1);
-    else setMonthOffset((o) => o - 1);
-  };
-
-  const navigateForward = () => {
-    if (viewMode === "week") setWeekOffset((o) => o + 1);
-    else setMonthOffset((o) => o + 1);
-  };
-
-  const now = new Date();
-  const isOffToday = viewMode === "week" ? weekOffset !== 0 : monthOffset !== 0;
+  const [selectedDay, setSelectedDay] = useState(8);
 
   return (
-    <AppScreen>
-      <ScrollView
-        contentContainerStyle={styles.scroll}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* ━━ Header ━━ */}
-        <View style={styles.headerRow}>
-          <AppText variant="largeTitle">Calendar</AppText>
-          <View style={styles.headerRight}>
-            {isOffToday && (
-              <Pressable
-                onPress={goToday}
-                style={({ pressed }) => [
-                  styles.todayBtn,
-                  {
-                    backgroundColor: colors.accent + "18",
-                    borderColor: colors.accent + "44",
-                    opacity: pressed ? 0.7 : 1,
-                  },
-                ]}
-              >
-                <AppText variant="captionBold" color={colors.accent}>
-                  Today
+    <AppScreen
+      safeBottom={false}
+      showLiquidBackground={false}
+      style={styles.screen}
+    >
+      <View style={styles.meshTopLeft} />
+      <View style={styles.meshTopRight} />
+      <View style={styles.meshBottomRight} />
+      <View style={styles.meshBottomLeft} />
+
+      <View style={styles.header}>
+        <View style={styles.headerInner}>
+          <View style={styles.brandRow}>
+            <View style={styles.avatar}>
+              {user?.avatarUrl ? (
+                <Image
+                  source={{ uri: user.avatarUrl }}
+                  style={{ width: 40, height: 40 }}
+                />
+              ) : (
+                <AppText
+                  style={{
+                    color: tokens.primary,
+                    fontFamily: "Inter",
+                    fontSize: 16,
+                    lineHeight: 20,
+                    fontWeight: "700",
+                  }}
+                >
+                  {user?.name?.charAt(0)?.toUpperCase() ?? "S"}
                 </AppText>
-              </Pressable>
-            )}
-            <Pressable
-              onPress={() => router.push("/add-shift")}
-              style={({ pressed }) => [
-                styles.addBtn,
-                {
-                  backgroundColor: colors.accent,
-                  opacity: pressed ? 0.8 : 1,
-                },
-              ]}
-            >
-              <IconSymbol name="plus" size={18} color="#fff" />
+              )}
+            </View>
+            <AppText style={styles.brandTitle}>ShiftBuddy</AppText>
+          </View>
+
+          <Pressable style={styles.headerButton} accessibilityRole="button">
+            <IconSymbol name="bell.fill" size={24} color={tokens.primary} />
+          </Pressable>
+        </View>
+      </View>
+
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.main}
+      >
+        <View style={styles.overview}>
+          <View style={styles.overviewLeft}>
+            <AppText style={styles.eyebrow}>Calendar Overview</AppText>
+            <View style={styles.titleRow}>
+              <AppText style={styles.monthTitle}>September 2024</AppText>
+              <AppText style={styles.summaryText}>42.5 hrs scheduled</AppText>
+            </View>
+          </View>
+
+          <View style={styles.navRow}>
+            <Pressable style={styles.navButton} accessibilityRole="button">
+              <IconSymbol
+                name="chevron.left"
+                size={22}
+                color={tokens.textSecondary}
+              />
+            </Pressable>
+            <Pressable style={styles.todayButton} accessibilityRole="button">
+              <AppText
+                style={{
+                  color: tokens.primary,
+                  fontFamily: "Inter",
+                  fontSize: 14,
+                  lineHeight: 20,
+                  fontWeight: "700",
+                }}
+              >
+                Today
+              </AppText>
+            </Pressable>
+            <Pressable style={styles.navButton} accessibilityRole="button">
+              <IconSymbol
+                name="chevron.right"
+                size={22}
+                color={tokens.textSecondary}
+              />
             </Pressable>
           </View>
         </View>
 
-        {/* ━━ View Mode Toggle ━━ */}
-        <View style={[styles.toggleRow, { backgroundColor: colors.surface }]}>
-          {(["week", "month"] as ViewMode[]).map((mode) => (
-            <Pressable
-              key={mode}
-              onPress={() => setViewMode(mode)}
-              style={[
-                styles.toggleBtn,
-                viewMode === mode && {
-                  backgroundColor: colors.accent,
-                  shadowColor: colors.accent,
-                  shadowOffset: { width: 0, height: 2 },
-                  shadowOpacity: 0.3,
-                  shadowRadius: 4,
-                  elevation: 3,
-                },
-              ]}
-            >
-              <AppText
-                variant="captionBold"
-                color={viewMode === mode ? "#fff" : colors.textSecondary}
-              >
-                {mode === "week" ? "Week" : "Month"}
-              </AppText>
-            </Pressable>
-          ))}
-        </View>
+        <View style={styles.calendarShell}>
+          <View style={styles.weekdayRow}>
+            {WEEKDAY_NAMES.map((weekday) => (
+              <View key={weekday} style={styles.weekdayCell}>
+                <AppText style={styles.weekdayLabel}>{weekday}</AppText>
+              </View>
+            ))}
+          </View>
 
-        {/* ━━ Navigation ━━ */}
-        <View style={styles.weekNav}>
-          <Pressable onPress={navigateBack} hitSlop={12}>
-            <IconSymbol
-              name="chevron.left"
-              size={22}
-              color={colors.textSecondary}
-            />
-          </Pressable>
-          <AppText variant="bodyBold" style={styles.flex1} center>
-            {viewMode === "week" ? weekLabel : monthLabel}
-          </AppText>
-          <Pressable onPress={navigateForward} hitSlop={12}>
-            <IconSymbol
-              name="chevron.right"
-              size={22}
-              color={colors.textSecondary}
-            />
-          </Pressable>
-        </View>
-
-        {/* ━━ WEEK VIEW ━━ */}
-        {viewMode === "week" && (
-          <View style={styles.dayStrip}>
-            {weekDays.map((d) => {
-              const isToday = isSameDay(d, today);
-              const isSelected = isSameDay(d, selectedDate);
-              const shiftCount =
-                shiftDateMap.get(d.toDateString())?.length ?? 0;
-              const isPast = d < today && !isToday;
+          <View style={styles.monthGrid}>
+            {CALENDAR_CELLS.map((cell) => {
+              const isSelected = selectedDay === cell.day;
 
               return (
                 <Pressable
-                  key={d.toISOString()}
-                  onPress={() => setSelectedDate(d)}
+                  key={cell.day}
+                  accessibilityRole="button"
+                  onPress={() => setSelectedDay(cell.day)}
                   style={({ pressed }) => [
-                    styles.dayCell,
-                    isSelected && {
-                      backgroundColor: colors.accent,
-                      borderRadius: 14,
-                    },
-                    pressed && !isSelected && { opacity: 0.6 },
+                    styles.monthCell,
+                    cell.muted && styles.mutedCell,
+                    pressed && { opacity: 0.7 },
                   ]}
                 >
-                  <AppText
-                    variant="label"
-                    color={
-                      isSelected
-                        ? "#fff"
-                        : isPast
-                          ? colors.textSecondary + "88"
-                          : colors.textSecondary
-                    }
-                  >
-                    {d.toLocaleDateString(undefined, { weekday: "narrow" })}
-                  </AppText>
-                  <AppText
-                    variant="bodyBold"
-                    color={
-                      isSelected
-                        ? "#fff"
-                        : isToday
-                          ? colors.accent
-                          : isPast
-                            ? colors.textSecondary + "88"
-                            : colors.textPrimary
-                    }
-                  >
-                    {d.getDate()}
-                  </AppText>
-                  <View
-                    style={[
-                      styles.shiftDot,
-                      {
-                        backgroundColor:
-                          shiftCount > 0
-                            ? isSelected
-                              ? "#fff"
-                              : colors.accent
-                            : "transparent",
-                      },
-                    ]}
-                  />
+                  {isSelected ? (
+                    <View style={styles.selectedCell}>
+                      <AppText
+                        style={[styles.dayNumber, styles.selectedDayNumber]}
+                      >
+                        {cell.day}
+                      </AppText>
+                      {cell.dot && <View style={styles.selectedDot} />}
+                    </View>
+                  ) : (
+                    <>
+                      <AppText style={styles.dayNumber}>{cell.day}</AppText>
+                      {cell.dot && <View style={styles.dayDot} />}
+                    </>
+                  )}
                 </Pressable>
               );
             })}
           </View>
-        )}
+        </View>
 
-        {/* ━━ MONTH VIEW ━━ */}
-        {viewMode === "month" && (
-          <View style={styles.monthGrid}>
-            {/* Weekday header */}
-            <View style={styles.monthWeekHeader}>
-              {WEEKDAY_NAMES.map((name) => (
-                <View key={name} style={styles.monthHeaderCell}>
-                  <AppText variant="label" color={colors.textSecondary} center>
-                    {name}
-                  </AppText>
-                </View>
-              ))}
+        <View style={styles.agendaPanel}>
+          <View style={styles.agendaHeader}>
+            <View>
+              <AppText style={styles.agendaEyebrow}>Selected Day</AppText>
+              <AppText style={styles.agendaTitle}>
+                Sunday, Sept {selectedDay}
+              </AppText>
             </View>
-            {/* Day cells */}
-            <View style={styles.monthCells}>
-              {monthData.cells.map((d, idx) => {
-                if (!d) {
-                  return <View key={`empty-${idx}`} style={styles.monthCell} />;
-                }
-                const isToday = isSameDay(d, today);
-                const isSelected = isSameDay(d, selectedDate);
-                const dayShiftsHere = shiftDateMap.get(d.toDateString());
-                const isPast = d < today && !isToday;
-
-                // Get unique workplace colors for this day
-                const shiftColors = (dayShiftsHere ?? [])
-                  .map(
-                    (s) =>
-                      workplaces.find((w) => w.id === s.workplaceId)?.color,
-                  )
-                  .filter((c): c is string => !!c)
-                  .filter((c, i, a) => a.indexOf(c) === i)
-                  .slice(0, 3);
-
-                return (
-                  <Pressable
-                    key={d.toISOString()}
-                    onPress={() => setSelectedDate(d)}
-                    style={[
-                      styles.monthCell,
-                      isSelected && {
-                        backgroundColor: colors.accent,
-                        borderRadius: 10,
-                      },
-                      isToday &&
-                        !isSelected && {
-                          borderWidth: 1.5,
-                          borderColor: colors.accent,
-                          borderRadius: 10,
-                        },
-                    ]}
-                  >
-                    <AppText
-                      variant={
-                        isToday || isSelected ? "captionBold" : "caption"
-                      }
-                      color={
-                        isSelected
-                          ? "#fff"
-                          : isToday
-                            ? colors.accent
-                            : isPast
-                              ? colors.textSecondary + "77"
-                              : colors.textPrimary
-                      }
-                    >
-                      {d.getDate()}
-                    </AppText>
-                    {shiftColors.length > 0 && (
-                      <View style={styles.monthDotRow}>
-                        {shiftColors.map((c, i) => (
-                          <View
-                            key={i}
-                            style={[
-                              styles.monthDot,
-                              {
-                                backgroundColor: isSelected ? "#fff" : c,
-                              },
-                            ]}
-                          />
-                        ))}
-                      </View>
-                    )}
-                  </Pressable>
-                );
-              })}
+            <View style={styles.agendaPill}>
+              <AppText style={styles.agendaPillText}>8.5 hrs Today</AppText>
             </View>
           </View>
-        )}
 
-        {/* ━━ Selected Day Summary ━━ */}
-        <FadeInView delay={0} duration={300}>
-          <View style={styles.daySummary}>
-            <View style={styles.flex1}>
-              <AppText variant="subheading">
-                {isSameDay(selectedDate, today)
-                  ? "Today"
-                  : selectedDate.toLocaleDateString(undefined, {
-                      weekday: "long",
-                      month: "short",
-                      day: "numeric",
-                    })}
-              </AppText>
-            </View>
-            {dayShifts.length > 0 && (
-              <AppBadge
-                label={`${dayShifts.length} shift${dayShifts.length !== 1 ? "s" : ""} · ${dayTotalHrs.toFixed(1)}h`}
-                variant="accent"
-              />
-            )}
-          </View>
-        </FadeInView>
+          <View style={styles.timeline}>
+            <View style={styles.timelineLine} />
 
-        {/* ━━ Shift Cards ━━ */}
-        {dayShifts.length === 0 ? (
-          <AppCard style={styles.emptyCard}>
-            <View style={styles.emptyInner}>
-              <IconSymbol
-                name="calendar"
-                size={36}
-                color={colors.textSecondary + "66"}
-              />
-              <AppText variant="heading" center>
-                No shifts
-              </AppText>
-              <AppText variant="body" color={colors.textSecondary} center>
-                {isSameDay(selectedDate, today)
-                  ? "Enjoy your day off! ☀️"
-                  : "Nothing scheduled for this day"}
-              </AppText>
-              <Pressable
-                onPress={() => router.push("/add-shift")}
-                style={({ pressed }) => [
-                  styles.addShiftLink,
-                  {
-                    backgroundColor: colors.accent + "14",
-                    opacity: pressed ? 0.7 : 1,
-                  },
-                ]}
-              >
-                <IconSymbol
-                  name="plus.circle.fill"
-                  size={16}
-                  color={colors.accent}
-                />
-                <AppText variant="captionBold" color={colors.accent}>
-                  Add a shift
-                </AppText>
-              </Pressable>
-            </View>
-          </AppCard>
-        ) : (
-          dayShifts.map((shift, idx) => {
-            const wp = workplaces.find((w) => w.id === shift.workplaceId);
-            const isPast = new Date(shift.endDateTime) < now;
-            const isActive =
-              new Date(shift.startDateTime) <= now &&
-              new Date(shift.endDateTime) >= now;
-            const hasConflict = dayConflictShiftIds.has(shift.id);
-
-            return (
-              <FadeInView key={shift.id} delay={60 + idx * 50} duration={350}>
-                <AnimatedPress scale={0.98}>
-                  <AppCard
-                    accentBorder={wp?.color}
-                    style={[styles.shiftCard, isPast && { opacity: 0.5 }]}
-                  >
-                    <View style={styles.shiftRow}>
-                      {/* Time column */}
-                      <View style={styles.timeCol}>
-                        <AppText variant="bodyBold">
-                          {fmtTime(shift.startDateTime)}
-                        </AppText>
-                        <AppText variant="caption" color={colors.textSecondary}>
-                          {fmtTime(shift.endDateTime)}
-                        </AppText>
-                      </View>
-
-                      {/* Timeline dot + line */}
-                      <View style={styles.tlCol}>
-                        <View
-                          style={[
-                            styles.tlDot,
-                            {
-                              backgroundColor: isActive
-                                ? colors.success
-                                : hasConflict
-                                  ? colors.error
-                                  : (wp?.color ?? colors.accent),
-                              borderColor: isActive
-                                ? colors.success + "44"
-                                : hasConflict
-                                  ? colors.error + "44"
-                                  : "transparent",
-                            },
-                          ]}
-                        />
-                        {idx < dayShifts.length - 1 && (
-                          <View
-                            style={[
-                              styles.tlLine,
-                              { backgroundColor: colors.border },
-                            ]}
-                          />
-                        )}
-                      </View>
-
-                      {/* Info */}
-                      <View style={styles.flex1}>
-                        <View style={styles.shiftInfoTop}>
-                          <AppText variant="bodyBold" style={styles.flex1}>
-                            {shift.title}
-                          </AppText>
-                          {isActive && (
-                            <AppBadge label="NOW" variant="success" />
-                          )}
-                          {hasConflict && (
-                            <AppBadge label="Conflict" variant="error" />
-                          )}
-                          {shift.status === "pending" && (
-                            <AppBadge label="Pending" variant="warning" />
-                          )}
-                        </View>
-
-                        <View style={styles.wpRow}>
-                          <View
-                            style={[
-                              styles.dot,
-                              { backgroundColor: wp?.color ?? colors.accent },
-                            ]}
-                          />
-                          <AppText
-                            variant="caption"
-                            color={colors.textSecondary}
-                          >
-                            {wp?.name ?? "Unknown"}
-                          </AppText>
-                          <AppText
-                            variant="caption"
-                            color={colors.textSecondary}
-                          >
-                            · {shiftDur(shift)}h
-                          </AppText>
-                        </View>
-
-                        {shift.source !== "manual" && (
-                          <View style={styles.sourceRow}>
-                            <IconSymbol
-                              name={
-                                shift.source === "image_ocr"
-                                  ? "camera.fill"
-                                  : "arrow.triangle.2.circlepath"
-                              }
-                              size={12}
-                              color={colors.textSecondary}
-                            />
-                            <AppText
-                              variant="label"
-                              color={colors.textSecondary}
-                            >
-                              {shift.source === "image_ocr"
-                                ? "From photo"
-                                : "Google Calendar"}
-                            </AppText>
-                          </View>
-                        )}
-
-                        {shift.notes && (
-                          <AppText
-                            variant="caption"
-                            color={colors.textSecondary}
-                            style={styles.notes}
-                            numberOfLines={1}
-                          >
-                            {shift.notes}
-                          </AppText>
-                        )}
-
-                        {wp?.hourlyRate && (
-                          <AppText
-                            variant="label"
-                            color={colors.success}
-                            style={styles.payLabel}
-                          >
-                            $
-                            {(
-                              parseFloat(shiftDur(shift)) * wp.hourlyRate
-                            ).toFixed(2)}{" "}
-                            est.
-                          </AppText>
-                        )}
-                      </View>
-                    </View>
-                  </AppCard>
-                </AnimatedPress>
-              </FadeInView>
-            );
-          })
-        )}
-
-        {/* ━━ Period Summary ━━ */}
-        {(() => {
-          const viewDays =
-            viewMode === "week"
-              ? weekDays
-              : monthData.cells.filter((d): d is Date => d !== null);
-          const totalShifts = viewDays.reduce(
-            (acc, d) => acc + (shiftDateMap.get(d.toDateString())?.length ?? 0),
-            0,
-          );
-          const totalHrs = viewDays.reduce(
-            (acc, d) =>
-              acc +
-              (shiftDateMap.get(d.toDateString()) ?? []).reduce(
-                (h, s) =>
-                  h +
-                  (new Date(s.endDateTime).getTime() -
-                    new Date(s.startDateTime).getTime()) /
-                    3_600_000,
-                0,
-              ),
-            0,
-          );
-          const totalPay = viewDays.reduce(
-            (acc, d) =>
-              acc +
-              (shiftDateMap.get(d.toDateString()) ?? []).reduce((earn, s) => {
-                const wp = workplaces.find((w) => w.id === s.workplaceId);
-                const hrs =
-                  (new Date(s.endDateTime).getTime() -
-                    new Date(s.startDateTime).getTime()) /
-                  3_600_000;
-                return earn + hrs * (wp?.hourlyRate ?? 0);
-              }, 0),
-            0,
-          );
-
-          if (totalShifts === 0) return null;
-          return (
-            <AppCard style={styles.weekSummary} p-16>
-              <AppText variant="overline" style={styles.weekSumLabel}>
-                {viewMode === "week" ? "THIS WEEK" : "THIS MONTH"}
-              </AppText>
-              <View style={styles.weekStatsRow}>
-                <View style={styles.weekStat}>
-                  <AppText variant="title" color={colors.accent} center>
-                    {totalShifts}
+            <View style={styles.timelineItem}>
+              <View style={styles.timelineDot} />
+              <View style={styles.shiftCard}>
+                <View style={styles.shiftHeader}>
+                  <AppText style={styles.shiftTitle}>
+                    Senior Care - Morning
                   </AppText>
-                  <AppText variant="label" center>
-                    Shifts
-                  </AppText>
+                  <View style={styles.timePill}>
+                    <AppText style={styles.timePillText}>07:00 — 11:30</AppText>
+                  </View>
                 </View>
-                <View
-                  style={[
-                    styles.weekStatDivider,
-                    { backgroundColor: colors.border },
-                  ]}
-                />
-                <View style={styles.weekStat}>
-                  <AppText variant="title" color={colors.success} center>
-                    {totalHrs.toFixed(1)}
-                  </AppText>
-                  <AppText variant="label" center>
-                    Hours
-                  </AppText>
-                </View>
-                <View
-                  style={[
-                    styles.weekStatDivider,
-                    { backgroundColor: colors.border },
-                  ]}
-                />
-                <View style={styles.weekStat}>
-                  <AppText variant="title" color={colors.warning} center>
-                    ${totalPay.toFixed(0)}
-                  </AppText>
-                  <AppText variant="label" center>
-                    Est. Pay
+                <View style={styles.shiftLocation}>
+                  <IconSymbol
+                    name="location.fill"
+                    size={14}
+                    color={tokens.textSecondary}
+                  />
+                  <AppText style={styles.shiftLocationText}>
+                    St. Mary&apos;s Medical Wing
                   </AppText>
                 </View>
               </View>
-            </AppCard>
-          );
-        })()}
+            </View>
 
-        <View style={styles.bottomSpacer} />
+            <View style={styles.timelineItem}>
+              <View style={styles.timelineDot} />
+              <View style={styles.shiftCard}>
+                <View style={styles.shiftHeader}>
+                  <AppText style={styles.shiftTitle}>Staff Supervision</AppText>
+                  <View style={styles.timePill}>
+                    <AppText style={styles.timePillText}>13:00 — 17:00</AppText>
+                  </View>
+                </View>
+                <View style={styles.shiftLocation}>
+                  <IconSymbol
+                    name="location.fill"
+                    size={14}
+                    color={tokens.textSecondary}
+                  />
+                  <AppText style={styles.shiftLocationText}>
+                    Central Hub Office
+                  </AppText>
+                </View>
+              </View>
+            </View>
+
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => router.push("/add-shift")}
+              style={styles.addSpecificTask}
+            >
+              <IconSymbol
+                name="plus.circle.fill"
+                size={18}
+                color={tokens.primary}
+              />
+              <AppText style={styles.addSpecificTaskText}>
+                Add specific task
+              </AppText>
+            </Pressable>
+          </View>
+        </View>
       </ScrollView>
+
+      <Pressable
+        accessibilityRole="button"
+        onPress={() => router.push("/add-shift")}
+        style={styles.fab}
+      >
+        <LinearGradient
+          colors={[tokens.primary, tokens.primaryGradientEnd]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.fabInner}
+        >
+          <IconSymbol name="plus" size={30} color={tokens.textOnPrimary} />
+        </LinearGradient>
+      </Pressable>
     </AppScreen>
   );
 }
-
-// ─── Styles ─────────────────────────────────────────────────────────
-const styles = StyleSheet.create({
-  scroll: { paddingHorizontal: 20, paddingTop: 12 },
-
-  // Header
-  headerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 12,
-  },
-  headerRight: { flexDirection: "row", alignItems: "center", gap: 8 },
-  todayBtn: {
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 10,
-    borderWidth: 1,
-  },
-  addBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  // Toggle
-  toggleRow: {
-    flexDirection: "row",
-    borderRadius: 12,
-    padding: 3,
-    marginBottom: 14,
-  },
-  toggleBtn: {
-    flex: 1,
-    alignItems: "center",
-    paddingVertical: 8,
-    borderRadius: 10,
-  },
-
-  // Navigation
-  weekNav: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 12,
-    paddingHorizontal: 4,
-  },
-
-  // Week strip
-  dayStrip: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 20,
-  },
-  dayCell: {
-    flex: 1,
-    alignItems: "center",
-    paddingVertical: 8,
-    gap: 4,
-  },
-  shiftDot: {
-    width: 5,
-    height: 5,
-    borderRadius: 2.5,
-    marginTop: 2,
-  },
-
-  // Month grid
-  monthGrid: { marginBottom: 16 },
-  monthWeekHeader: { flexDirection: "row", marginBottom: 8 },
-  monthHeaderCell: { flex: 1, alignItems: "center" },
-  monthCells: { flexDirection: "row", flexWrap: "wrap" },
-  monthCell: {
-    width: "14.28%" as unknown as number,
-    alignItems: "center",
-    paddingVertical: 6,
-    minHeight: 44,
-    justifyContent: "center",
-  },
-  monthDotRow: {
-    flexDirection: "row",
-    gap: 2,
-    marginTop: 2,
-  },
-  monthDot: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-  },
-
-  // Day summary
-  daySummary: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 12,
-  },
-
-  // Empty
-  emptyCard: { marginBottom: 16 },
-  emptyInner: { paddingVertical: 24, gap: 8, alignItems: "center" },
-  addShiftLink: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 10,
-    marginTop: 4,
-  },
-
-  // Shift cards
-  shiftCard: { marginBottom: 10 },
-  shiftRow: { flexDirection: "row", gap: 12 },
-  timeCol: { width: 52, alignItems: "flex-end" },
-  tlCol: { alignItems: "center", width: 20 },
-  tlDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    borderWidth: 2,
-    marginTop: 3,
-  },
-  tlLine: {
-    width: 2,
-    flex: 1,
-    marginTop: 4,
-    borderRadius: 1,
-  },
-  shiftInfoTop: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    marginBottom: 4,
-  },
-  wpRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  dot: { width: 7, height: 7, borderRadius: 3.5 },
-  sourceRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    marginTop: 4,
-  },
-  notes: { marginTop: 4, fontStyle: "italic" },
-  payLabel: { marginTop: 4 },
-
-  // Summary
-  weekSummary: { marginTop: 12, marginBottom: 16 },
-  weekSumLabel: { marginBottom: 12 },
-  weekStatsRow: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  weekStat: { flex: 1, alignItems: "center" },
-  weekStatDivider: { width: 1, height: 32 },
-
-  // Shared
-  flex1: { flex: 1 },
-  bottomSpacer: { height: 100 },
-});
