@@ -114,6 +114,19 @@ import {
   ThemeProvider,
 } from "@react-navigation/native";
 
+import { Inter_400Regular } from "@expo-google-fonts/inter/400Regular";
+import { Inter_700Bold } from "@expo-google-fonts/inter/700Bold";
+
+import { Inter_600SemiBold } from "@expo-google-fonts/inter/600SemiBold";
+
+import {
+  Manrope_600SemiBold,
+  Manrope_700Bold,
+  Manrope_800ExtraBold,
+} from "@expo-google-fonts/manrope";
+
+import { useFonts } from "expo-font";
+
 import { router, Stack } from "expo-router";
 
 import { StatusBar } from "expo-status-bar";
@@ -143,6 +156,15 @@ export default function RootLayout() {
 
   const tokens = useThemeStore((state) => state.theme.tokens);
 
+  const [fontsLoaded] = useFonts({
+    Inter_400Regular,
+    Inter_600SemiBold,
+    Inter_700Bold,
+    Manrope_600SemiBold,
+    Manrope_700Bold,
+    Manrope_800ExtraBold,
+  });
+
   const [splashComplete, setSplashComplete] = useState(false);
 
   useEffect(() => {
@@ -158,7 +180,7 @@ export default function RootLayout() {
   }, [hydrateTheme]);
 
   useEffect(() => {
-    if (!shiftsHydrated) {
+    if (!shiftsHydrated || !fontsLoaded) {
       return;
     }
 
@@ -169,7 +191,7 @@ export default function RootLayout() {
     return () => {
       clearTimeout(splashTimer);
     };
-  }, [shiftsHydrated]);
+  }, [shiftsHydrated, fontsLoaded]);
 
   useEffect(() => {
     if (!splashComplete) {
