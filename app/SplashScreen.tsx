@@ -1,425 +1,386 @@
-import { AppText } from "@/components/ui/app-text";
 import { useAppTheme } from "@/hooks/use-app-theme";
-import { MaterialIcons } from "@expo/vector-icons";
-import React, { useEffect, useRef } from "react";
-import {
-  Animated,
-  Easing,
-  StatusBar,
-  StyleSheet,
-  View,
-  useWindowDimensions,
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import React, { useEffect, useState } from "react";
+import { Animated, Easing, StyleSheet, View } from "react-native";
+import { AppText } from "@/components/ui/app-text";
+import { IconSymbol } from "@/components/ui/icon-symbol";
+import { LiquidBackground } from "@/components/ui/liquid-background";
 
-type SplashScreenProps = {
-  onFinish?: () => void;
-};
+export default function SplashScreen() {
+  const { tokens } = useAppTheme();
 
-export default function SplashScreen({ onFinish }: SplashScreenProps) {
-  const { tokens, theme } = useAppTheme();
-  const { width, height } = useWindowDimensions();
-  const isDark = theme.tokens.mode === "dark";
-  const logoSize = Math.min(Math.max(width * 0.28, 116), 148);
-  const progressTrackWidth = Math.min(Math.max(width * 0.42, 160), 240);
-  const titleSize = Math.min(Math.max(width * 0.11, 36), 48);
-
-  const glowScale = useRef(new Animated.Value(0.9)).current;
-  const logoFloat = useRef(new Animated.Value(0)).current;
-  const contentFade = useRef(new Animated.Value(0)).current;
-  const progress = useRef(new Animated.Value(0)).current;
+  const [logoAnim] = useState(() => new Animated.Value(0));
+  const [taglineAnim] = useState(() => new Animated.Value(0));
+  const [footerAnim] = useState(() => new Animated.Value(0));
+  const [orbAnim] = useState(() => new Animated.Value(0));
+  const [floatAnim] = useState(() => new Animated.Value(0));
 
   useEffect(() => {
-    StatusBar.setBarStyle(isDark ? "light-content" : "dark-content");
-    StatusBar.setBackgroundColor(tokens.background);
+    // Logo + title entrance - fade in, scale up, settle
+    Animated.timing(logoAnim, {
+      toValue: 1,
+      duration: 1200,
+      delay: 300,
+      easing: Easing.bezier(0.22, 1, 0.36, 1),
+      useNativeDriver: true,
+    }).start();
 
-    Animated.parallel([
-      Animated.timing(contentFade, {
-        toValue: 1,
-        duration: 700,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }),
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(glowScale, {
-            toValue: 1.05,
-            duration: 1800,
-            easing: Easing.inOut(Easing.ease),
-            useNativeDriver: true,
-          }),
-          Animated.timing(glowScale, {
-            toValue: 0.92,
-            duration: 1800,
-            easing: Easing.inOut(Easing.ease),
-            useNativeDriver: true,
-          }),
-        ]),
-      ),
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(logoFloat, {
-            toValue: -6,
-            duration: 2200,
-            easing: Easing.inOut(Easing.ease),
-            useNativeDriver: true,
-          }),
-          Animated.timing(logoFloat, {
-            toValue: 0,
-            duration: 2200,
-            easing: Easing.inOut(Easing.ease),
-            useNativeDriver: true,
-          }),
-        ]),
-      ),
-      Animated.timing(progress, {
-        toValue: 1,
-        duration: 2600,
-        easing: Easing.inOut(Easing.cubic),
-        useNativeDriver: false,
-      }),
-    ]).start();
+    // Tagline entrance - delayed fade in
+    Animated.timing(taglineAnim, {
+      toValue: 1,
+      duration: 1000,
+      delay: 800,
+      easing: Easing.bezier(0.22, 1, 0.36, 1),
+      useNativeDriver: true,
+    }).start();
 
-    const timer = setTimeout(() => {
-      onFinish?.();
-    }, 3000);
+    // Footer entrance - settles at 30% opacity
+    Animated.timing(footerAnim, {
+      toValue: 1,
+      duration: 2000,
+      delay: 1500,
+      easing: Easing.ease,
+      useNativeDriver: true,
+    }).start();
 
-    return () => clearTimeout(timer);
-  }, [
-    contentFade,
-    glowScale,
-    logoFloat,
-    progress,
-    onFinish,
-    isDark,
-    tokens.background,
-  ]);
+    // Loading orb - continuous pulse
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(orbAnim, {
+          toValue: 1,
+          duration: 1500,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(orbAnim, {
+          toValue: 0,
+          duration: 1500,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ]),
+    ).start();
 
-  const progressWidth = progress.interpolate({
+    // Logo card - continuous gentle float
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(floatAnim, {
+          toValue: 1,
+          duration: 3000,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(floatAnim, {
+          toValue: 0,
+          duration: 3000,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ]),
+    ).start();
+  }, [logoAnim, taglineAnim, footerAnim, orbAnim, floatAnim]);
+
+  // Interpolations
+  const logoScale = logoAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: [0, progressTrackWidth],
+    outputRange: [0.9, 1],
   });
 
-  const logoTranslateStyle = {
-    transform: [{ translateY: logoFloat }],
-  };
+  const logoTranslateY = logoAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [20, 0],
+  });
+
+  const taglineTranslateY = taglineAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [10, 0],
+  });
+
+  const footerOpacity = footerAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 0.3],
+  });
+
+  const orbScale = orbAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 1.1],
+  });
+
+  const orbOpacity = orbAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.4, 0.8],
+  });
+
+  const floatTranslateY = floatAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, -10],
+  });
+
+  const floatScale = floatAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 1.02],
+  });
 
   return (
-    <SafeAreaView
-      style={[styles.safeArea, { backgroundColor: tokens.background }]}
-    >
-      <StatusBar
-        barStyle={isDark ? "light-content" : "dark-content"}
-        backgroundColor={tokens.background}
-      />
+    <View style={[styles.root, { backgroundColor: tokens.background }]}>
+      <LiquidBackground />
 
-      <View style={styles.container}>
-        {/* Ambient background blobs */}
-        <View style={styles.bgLayer}>
-          <View
-            style={[
-              styles.topBlob,
-              {
-                backgroundColor: `${tokens.primary}1A`,
-                width: width * 0.65,
-                height: width * 0.65,
-                top: -height * 0.08,
-                left: -width * 0.18,
-              },
-            ]}
-          />
-          <View
-            style={[
-              styles.bottomBlob,
-              {
-                backgroundColor: `${tokens.tertiary}12`,
-                width: width * 0.48,
-                height: width * 0.48,
-                bottom: -height * 0.05,
-                right: -width * 0.12,
-              },
-            ]}
-          />
-        </View>
-
+      <View style={styles.mainContent}>
+        {/* Logo Section */}
         <Animated.View
           style={[
-            styles.centerContent,
-            { opacity: contentFade, transform: [{ translateY: 8 }] },
+            styles.logoSection,
+            {
+              opacity: logoAnim,
+              transform: [{ scale: logoScale }, { translateY: logoTranslateY }],
+            },
           ]}
         >
-          <Animated.View style={[styles.logoWrap, logoTranslateStyle]}>
-            <Animated.View
-              style={[
-                styles.outerGlow,
-                {
-                  transform: [{ scale: glowScale }],
-                  backgroundColor: `${tokens.primary}1A`,
-                },
-              ]}
-            />
-
+          <Animated.View
+            style={[
+              styles.logoCardWrap,
+              {
+                transform: [
+                  { translateY: floatTranslateY },
+                  { scale: floatScale },
+                ],
+              },
+            ]}
+          >
             <View
               style={[
                 styles.logoCard,
                 {
-                  width: logoSize,
-                  height: logoSize,
-                  backgroundColor: tokens.surface,
-                  borderColor: tokens.border,
+                  backgroundColor: tokens.surfaceElevated,
+                  borderColor: tokens.glassHighlight,
+                  shadowColor: tokens.primary,
                 },
               ]}
             >
-              <MaterialIcons
-                name="work-history"
-                size={68}
-                color={tokens.primary}
-              />
+              <View style={styles.iconBox}>
+                <View
+                  style={[
+                    styles.iconRing,
+                    { borderColor: `${tokens.primary}33` },
+                  ]}
+                />
 
-              <View
-                style={[
-                  styles.sparkBadge,
-                  {
-                    backgroundColor: tokens.primary_container,
-                  },
-                ]}
-              >
-                <MaterialIcons
-                  name="auto-awesome"
-                  size={14}
-                  color={tokens.iconOnPrimary}
+                <IconSymbol
+                  name="safari.fill"
+                  size={60}
+                  color={tokens.primary}
+                  fill={1}
+                />
+
+                <View
+                  style={[
+                    styles.accentDot,
+                    {
+                      backgroundColor: tokens.primaryPressed,
+                      borderColor: tokens.surfaceElevated,
+                    },
+                  ]}
                 />
               </View>
             </View>
           </Animated.View>
 
-          <View style={styles.textBlock}>
-            <AppText
-              variant="largeTitle"
-              center
-              style={[
-                styles.title,
-                {
-                  color: tokens.textPrimary,
-                  fontSize: titleSize,
-                  lineHeight: titleSize + 8,
-                },
-              ]}
-            >
-              ShiftBuddy
-            </AppText>
-
-            <View style={styles.subtitleRow}>
-              <View
-                style={[
-                  styles.line,
-                  { backgroundColor: `${tokens.textTertiary}47` },
-                ]}
-              />
-              <AppText
-                variant="overline"
-                center
-                style={[
-                  styles.subtitle,
-                  {
-                    color: tokens.textSecondary,
-                  },
-                ]}
-              >
-                All your jobs. One clear schedule.
-              </AppText>
-              <View
-                style={[
-                  styles.line,
-                  { backgroundColor: `${tokens.textTertiary}47` },
-                ]}
-              />
-            </View>
-          </View>
+          <AppText
+            variant="largeTitle"
+            center
+            style={[styles.title, { color: tokens.primary }]}
+          >
+            ShiftBuddy
+          </AppText>
         </Animated.View>
 
-        <View style={styles.bottomSection}>
-          <View style={[styles.progressTrack, { width: progressTrackWidth }]}>
-            <Animated.View
-              style={[
-                styles.progressFill,
-                { width: progressWidth },
-                { backgroundColor: tokens.primary },
-              ]}
-            />
-          </View>
-
+        {/* Tagline */}
+        <Animated.View
+          style={[
+            styles.taglineWrap,
+            {
+              opacity: taglineAnim,
+              transform: [{ translateY: taglineTranslateY }],
+            },
+          ]}
+        >
           <AppText
-            variant="overline"
+            variant="subheading"
             center
-            style={[
-              styles.loadingText,
-              {
-                color: `${tokens.textTertiary}B8`,
-              },
-            ]}
+            style={[styles.tagline, { color: `${tokens.primary}CC` }]}
           >
-            Synchronizing Workspaces
+            All your jobs. One clear schedule.
           </AppText>
-        </View>
-
-        {/* Footer */}
-        <View style={styles.footer}>
-          <View
-            style={[
-              styles.footerLine,
-              { backgroundColor: `${tokens.primary}33` },
-            ]}
-          />
-          <AppText
-            variant="overline"
-            center
-            style={[
-              styles.footerVersion,
-              {
-                color: `${tokens.primary}4D`,
-              },
-            ]}
-          >
-            v 2.4.0
-          </AppText>
-          <View
-            style={[
-              styles.footerLine,
-              { backgroundColor: `${tokens.primary}33` },
-            ]}
-          />
-        </View>
-
-        {/* Subtle texture overlay */}
-        <View style={styles.noiseOverlay} />
+        </Animated.View>
       </View>
-    </SafeAreaView>
+
+      {/* High-End Loading Indicator */}
+      <View style={styles.bottomSection}>
+        <View style={styles.orbContainer}>
+          <Animated.View
+            style={[
+              styles.orb,
+              {
+                transform: [{ scale: orbScale }],
+                opacity: orbOpacity,
+                backgroundColor: tokens.glassBackground,
+                borderColor: tokens.glassBorder,
+              },
+            ]}
+          />
+
+          <View
+            style={[styles.orbInnerGlow, { backgroundColor: tokens.primary }]}
+          />
+        </View>
+
+        <AppText
+          variant="overline"
+          center
+          style={[styles.loadingText, { color: `${tokens.primary}66` }]}
+        >
+          Synchronizing Workspaces
+        </AppText>
+      </View>
+
+      {/* Footer */}
+      <Animated.View style={[styles.footer, { opacity: footerOpacity }]}>
+        <View
+          style={[styles.footerLine, { backgroundColor: `${tokens.primary}33` }]}
+        />
+
+        <AppText
+          variant="label"
+          center
+          style={[styles.footerVersion, { color: tokens.primary }]}
+        >
+          v 2.4.0
+        </AppText>
+
+        <View
+          style={[styles.footerLine, { backgroundColor: `${tokens.primary}33` }]}
+        />
+      </Animated.View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-  },
-  container: {
+  root: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 24,
-    overflow: "hidden",
   },
-  bgLayer: {
-    ...StyleSheet.absoluteFillObject,
+  mainContent: {
+    alignItems: "center",
+    gap: 48,
   },
-  topBlob: {
-    position: "absolute",
-    borderRadius: 999,
-    transform: [{ scaleX: 1.2 }, { scaleY: 1.2 }],
+  logoSection: {
+    alignItems: "center",
   },
-  bottomBlob: {
-    position: "absolute",
-    borderRadius: 999,
-    transform: [{ scaleX: 1.15 }, { scaleY: 1.15 }],
-  },
-  centerContent: {
+  logoCardWrap: {
+    marginBottom: 32,
     alignItems: "center",
     justifyContent: "center",
-  },
-  logoWrap: {
-    marginBottom: 44,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  outerGlow: {
-    position: "absolute",
-    borderRadius: 999,
   },
   logoCard: {
-    borderRadius: 32,
+    width: 128,
+    height: 128,
+    borderRadius: 40,
     borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#000",
-    shadowOpacity: 0.35,
-    shadowRadius: 24,
-    shadowOffset: { width: 0, height: 14 },
-    elevation: 14,
+    shadowOpacity: 0.12,
+    shadowRadius: 50,
+    shadowOffset: { width: 0, height: 20 },
+    elevation: 20,
   },
-  sparkBadge: {
-    position: "absolute",
-    top: -6,
-    right: -6,
-    width: 30,
-    height: 30,
-    borderRadius: 999,
+  iconBox: {
+    width: 80,
+    height: 80,
     alignItems: "center",
     justifyContent: "center",
-    shadowOpacity: 0.4,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 8,
   },
-  textBlock: {
-    alignItems: "center",
+  iconRing: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderWidth: 3,
+    borderRadius: 40,
+  },
+  accentDot: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    borderWidth: 2,
   },
   title: {
-    letterSpacing: -1.4,
+    letterSpacing: -0.9,
   },
-  subtitleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 14,
+  taglineWrap: {
+    maxWidth: 300,
   },
-  line: {
-    width: 34,
-    height: 1,
-  },
-  subtitle: {
-    letterSpacing: 4,
-    marginHorizontal: 12,
+  tagline: {
+    letterSpacing: 0.4,
+    lineHeight: 26,
   },
   bottomSection: {
     position: "absolute",
-    bottom: 84,
+    bottom: 96,
+    left: 0,
+    right: 0,
     alignItems: "center",
   },
-  progressTrack: {
-    height: 6,
-    borderRadius: 999,
-    overflow: "hidden",
+  orbContainer: {
+    width: 48,
+    height: 48,
+    marginBottom: 16,
   },
-  progressFill: {
-    height: "100%",
-    borderRadius: 999,
+  orb: {
+    position: "absolute",
+    top: 8,
+    left: 8,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 1,
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
+  },
+  orbInnerGlow: {
+    position: "absolute",
+    top: 20,
+    left: 20,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    opacity: 0.6,
   },
   loadingText: {
-    marginTop: 16,
-    letterSpacing: 2.4,
+    letterSpacing: 2,
   },
   footer: {
     position: "absolute",
-    bottom: 10,
+    bottom: 40,
     left: 0,
     right: 0,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 8,
-    opacity: 0.3,
+    justifyContent: "space-between",
+    paddingHorizontal: 32,
   },
   footerLine: {
     flex: 1,
     height: 1,
   },
   footerVersion: {
-    letterSpacing: 2.4,
-    marginHorizontal: 12,
-  },
-  noiseOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    opacity: 0.04,
-    backgroundColor: "#ffffff",
-    pointerEvents: "none",
+    textTransform: "uppercase",
+    marginHorizontal: 16,
   },
 });
