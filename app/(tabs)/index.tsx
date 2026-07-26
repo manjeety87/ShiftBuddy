@@ -1,61 +1,348 @@
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
+import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
-import React from "react";
+import React, { useState } from "react";
 import {
   Image,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   View,
+  type StyleProp,
   type ViewStyle,
 } from "react-native";
 
 import { AppBadge } from "@/components/ui/app-badge";
 import { AppScreen } from "@/components/ui/app-screen";
 import { AppText } from "@/components/ui/app-text";
-import { IconSymbol } from "@/components/ui/icon-symbol";
+import { GlassHeader } from "@/components/ui/glass-header";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useShiftStore } from "@/store";
-import type { Shift } from "@/types";
+import type { ThemeTokens } from "@/theme";
+import type { Shift, ShiftConflict } from "@/types";
 import { getShiftWorkplaceLabel } from "@/utils/shift-labels";
 
-const fmtTime = (iso: string) =>
-  new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-
-const fmtDate = (iso: string) =>
-  new Date(iso).toLocaleDateString(undefined, {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
+const formatTime = (iso: string) =>
+  new Date(iso).toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
   });
 
-const shiftDurationHours = (shift: Shift) => {
-  const ms =
-    new Date(shift.endDateTime).getTime() -
-    new Date(shift.startDateTime).getTime();
-  return ms / 3_600_000;
-};
+const formatDayKey = (date: Date) =>
+  `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
 
-const timeUntil = (iso: string) => {
-  const diffMs = new Date(iso).getTime() - Date.now();
-  if (diffMs <= 0) return "Now";
-  const totalMinutes = Math.floor(diffMs / 60_000);
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
+const formatDate = (date: Date) =>
+  date.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
 
-  if (hours >= 24) {
-    const days = Math.floor(hours / 24);
-    const remHours = hours % 24;
-    return `${days}d ${remHours}h`;
+function timeUntil(iso: string): string {
+  const minutes = Math.floor((new Date(iso).getTime() - Date.now()) / 60_000);
+
+  if (minutes <= 0) {
+    return "Now";
   }
 
-  if (hours === 0) return `${minutes}m`;
-  return `${hours}h ${minutes}m`;
-};
+  if (minutes < 60) {
+    return `${minutes}m`;
+  }
+
+  const hours = Math.floor(minutes / 60);
+
+  if (hours < 24) {
+    return `${hours}h ${minutes % 60}m`;
+  }
+
+  return `${Math.floor(hours / 24)}d ${hours % 24}h`;
+}
+
+function greeting(date: Date): string {
+  if (date.getHours() < 12) {
+    return "Good morning";
+  }
+
+  if (date.getHours() < 17) {
+    return "Good afternoon";
+  }
+
+  return "Good evening";
+}
+
+function weekNumber(date: Date): number {
+  const utc = new Date(
+    Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()),
+  );
+
+  const day = utc.getUTCDay() || 7;
+
+  utc.setUTCDate(utc.getUTCDate() + 4 - day);
+
+  const yearStart = new Date(Date.UTC(utc.getUTCFullYear(), 0, 1));
+
+  return Math.ceil(
+    ((utc.getTime() - yearStart.getTime()) / 86_400_000 + 1) / 7,
+  );
+}
+
+function startOfDay(date: Date): Date {
+  const start = new Date(date);
+
+  start.setHours(0, 0, 0, 0);
+
+  return start;
+}
+
+function conflictShiftIds(conflicts: ShiftConflict[]): Set<string> {
+  const ids = new Set<string>();
+
+  conflicts
+    .filter((conflict) => !conflict.resolved)
+    .forEach((conflict) => {
+      ids.add(conflict.shiftAId);
+      ids.add(conflict.shiftBId);
+    });
+
+  return ids;
+}
+
+function shiftState(
+  shift: Shift,
+  now: Date,
+): "current" | "upcoming" | "completed" | "cancelled" {
+  if (shift.status === "cancelled") {
+    return "cancelled";
+  }
+
+  const start = new Date(shift.startDateTime).getTime();
+
+  const end = new Date(shift.endDateTime).getTime();
+
+  if (start <= now.getTime() && end >= now.getTime()) {
+    return "current";
+  }
+
+  return start > now.getTime() ? "upcoming" : "completed";
+}
+
+type IconName = React.ComponentProps<typeof MaterialCommunityIcons>["name"];
+
+interface GlassSurfaceProps {
+  children: React.ReactNode;
+  tokens: ThemeTokens;
+  style?: StyleProp<ViewStyle>;
+  padding?: number;
+  strong?: boolean;
+}
+
+function GlassSurface({
+  children,
+  tokens,
+  style,
+  padding = 18,
+  strong = false,
+}: GlassSurfaceProps) {
+  const shadow = (
+    Platform.OS === "web"
+      ? {
+          boxShadow: `0px 12px 32px ${tokens.ambientShadow}`,
+        }
+      : {
+          shadowColor: tokens.shadow,
+          shadowOffset: { width: 0, height: 12 },
+          shadowOpacity: tokens.mode === "dark" ? 0.26 : 0.1,
+          shadowRadius: 24,
+          elevation: 4,
+        }
+  ) as ViewStyle;
+
+  const background = strong
+    ? tokens.glassBackgroundStrong
+    : tokens.glassBackground;
+
+  return (
+    <View
+      style={[
+        styles.glass,
+        {
+          borderRadius: tokens.radiusLarge,
+          borderColor: tokens.glassBorder,
+          backgroundColor: background,
+        },
+        shadow,
+        style,
+      ]}
+    >
+      <BlurView
+        intensity={tokens.glassBlur}
+        tint={tokens.glassTint}
+        experimentalBlurMethod="dimezisBlurView"
+        style={[StyleSheet.absoluteFill, styles.decorative]}
+      />
+
+      <View
+        style={[
+          StyleSheet.absoluteFill,
+          styles.decorative,
+          { backgroundColor: background },
+        ]}
+      />
+
+      <View
+        style={[
+          styles.glassHighlight,
+          styles.decorative,
+          { backgroundColor: tokens.glassHighlight },
+        ]}
+      />
+
+      <View style={{ padding }}>{children}</View>
+    </View>
+  );
+}
+
+interface HeaderButtonProps {
+  icon: IconName;
+  label: string;
+  tokens: ThemeTokens;
+  onPress: () => void;
+}
+
+function HeaderButton({ icon, label, tokens, onPress }: HeaderButtonProps) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.headerButton,
+        {
+          borderRadius: tokens.radiusPill,
+          backgroundColor: pressed
+            ? tokens.surfacePressed
+            : tokens.glassBackgroundStrong,
+          opacity: pressed ? 0.8 : 1,
+        },
+      ]}
+    >
+      <MaterialCommunityIcons
+        name={icon}
+        size={20}
+        color={tokens.iconSecondary}
+      />
+    </Pressable>
+  );
+}
+
+interface QuickActionProps {
+  label: string;
+  icon: IconName;
+  color: string;
+  tokens: ThemeTokens;
+  onPress: () => void;
+}
+
+function QuickAction({
+  label,
+  icon,
+  color,
+  tokens,
+  onPress,
+}: QuickActionProps) {
+  return (
+    <View style={styles.quickWrap}>
+      <GlassSurface tokens={tokens} style={styles.quickSurface}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={label}
+          onPress={onPress}
+          style={({ pressed }) => [
+            styles.quickButton,
+            { opacity: pressed ? 0.7 : 1 },
+          ]}
+        >
+          <MaterialCommunityIcons name={icon} size={26} color={color} />
+        </Pressable>
+        <AppText
+          variant="caption"
+          color={tokens.textSecondary}
+          style={styles.quickButtonText}
+          center
+        >
+          {label}
+        </AppText>
+      </GlassSurface>
+    </View>
+  );
+}
+
+interface SegmentOption {
+  key: string;
+  label: string;
+}
+
+interface SegmentToggleProps {
+  options: SegmentOption[];
+  activeKey: string;
+  tokens: ThemeTokens;
+  onSelect: (key: string) => void;
+}
+
+function SegmentToggle({
+  options,
+  activeKey,
+  tokens,
+  onSelect,
+}: SegmentToggleProps) {
+  return (
+    <View
+      style={[
+        styles.segmentTrack,
+        {
+          borderRadius: tokens.radiusPill,
+          backgroundColor: tokens.glassBackground,
+          borderColor: tokens.glassBorder,
+        },
+      ]}
+    >
+      {options.map((option) => {
+        const active = option.key === activeKey;
+
+        return (
+          <Pressable
+            key={option.key}
+            accessibilityRole="button"
+            accessibilityState={{ selected: active }}
+            onPress={() => onSelect(option.key)}
+            style={({ pressed }) => [
+              styles.segmentItem,
+              {
+                borderRadius: tokens.radiusPill,
+                backgroundColor: active
+                  ? tokens.surfaceElevated
+                  : "transparent",
+                opacity: pressed ? 0.8 : 1,
+              },
+            ]}
+          >
+            <AppText
+              variant="captionBold"
+              color={active ? tokens.textPrimary : tokens.textTertiary}
+            >
+              {option.label}
+            </AppText>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
 
 export default function HomeScreen() {
-  const { theme } = useAppTheme();
-  const tokens = theme.tokens;
+  const { tokens } = useAppTheme();
 
   const shifts = useShiftStore((state) => state.shifts);
   const workplaces = useShiftStore((state) => state.workplaces);
@@ -63,503 +350,604 @@ export default function HomeScreen() {
   const user = useShiftStore((state) => state.user);
 
   const now = new Date();
-  const todayKey = now.toDateString();
+  const todayKey = formatDayKey(now);
 
-  const upcoming = shifts
-    .filter(
-      (shift) =>
-        shift.status !== "cancelled" &&
-        new Date(shift.startDateTime).getTime() > now.getTime(),
-    )
-    .sort(
-      (a, b) =>
-        new Date(a.startDateTime).getTime() -
-        new Date(b.startDateTime).getTime(),
-    );
-
-  const nextShift = upcoming[0];
-  const nextWorkplace = nextShift
-    ? workplaces.find((workplace) => workplace.id === nextShift.workplaceId)
-    : undefined;
-
-  const nextShiftLabel = nextShift
-    ? getShiftWorkplaceLabel(nextShift, workplaces)
-    : "";
-
-  const todayShifts = shifts
-    .filter(
-      (shift) => new Date(shift.startDateTime).toDateString() === todayKey,
-    )
-    .sort(
-      (a, b) =>
-        new Date(a.startDateTime).getTime() -
-        new Date(b.startDateTime).getTime(),
-    );
+  const [selectedDateKey, setSelectedDateKey] = useState(todayKey);
 
   const unresolvedConflicts = conflicts.filter(
     (conflict) => !conflict.resolved,
   );
-  const topConflict = unresolvedConflicts[0];
 
-  const conflictShiftA = topConflict
-    ? shifts.find((shift) => shift.id === topConflict.shiftAId)
-    : undefined;
-  const conflictShiftB = topConflict
-    ? shifts.find((shift) => shift.id === topConflict.shiftBId)
-    : undefined;
+  const conflictedIds = conflictShiftIds(conflicts);
 
-  const conflictLabelA = conflictShiftA
-    ? getShiftWorkplaceLabel(conflictShiftA, workplaces)
+  const validShifts = shifts
+    .filter((shift) => shift.status !== "cancelled")
+    .sort(
+      (first, second) =>
+        new Date(first.startDateTime).getTime() -
+        new Date(second.startDateTime).getTime(),
+    );
+
+  const currentShift = validShifts.find(
+    (shift) =>
+      new Date(shift.startDateTime).getTime() <= now.getTime() &&
+      new Date(shift.endDateTime).getTime() >= now.getTime(),
+  );
+
+  const heroShift =
+    currentShift ??
+    validShifts.find(
+      (shift) => new Date(shift.startDateTime).getTime() > now.getTime(),
+    );
+
+  const heroWorkplaceLabel = heroShift
+    ? getShiftWorkplaceLabel(heroShift, workplaces)
     : "";
 
-  const conflictLabelB = conflictShiftB
-    ? getShiftWorkplaceLabel(conflictShiftB, workplaces)
-    : "";
+  const start = startOfDay(now);
 
-  const weekStart = new Date(now);
-  weekStart.setHours(0, 0, 0, 0);
+  const weekDays = Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(start);
 
-  const weekBuckets = Array.from({ length: 7 }, (_, index) => {
-    const day = new Date(weekStart);
-    day.setDate(weekStart.getDate() + index);
+    date.setDate(start.getDate() + index);
 
-    const shiftsForDay = shifts.filter((shift) => {
-      const shiftDate = new Date(shift.startDateTime);
-      return (
-        shift.status !== "cancelled" &&
-        shiftDate.getFullYear() === day.getFullYear() &&
-        shiftDate.getMonth() === day.getMonth() &&
-        shiftDate.getDate() === day.getDate()
-      );
-    });
+    const key = formatDayKey(date);
 
-    const totalHours = shiftsForDay.reduce(
-      (acc, shift) => acc + shiftDurationHours(shift),
-      0,
+    const dayShifts = validShifts.filter(
+      (shift) => formatDayKey(new Date(shift.startDateTime)) === key,
     );
 
     return {
-      key: day.toDateString(),
-      day,
-      totalHours,
-      hasConflict: shiftsForDay.length > 1,
+      date,
+      key,
+      shifts: dayShifts,
+      hasConflict: dayShifts.some((shift) => conflictedIds.has(shift.id)),
     };
   });
 
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const monthEnd = new Date(
-    now.getFullYear(),
-    now.getMonth() + 1,
-    0,
-    23,
-    59,
-    59,
-    999,
-  );
+  const selectedDay =
+    weekDays.find((day) => day.key === selectedDateKey) ?? weekDays[0];
 
-  const workplaceSummary = workplaces
-    .map((workplace) => {
-      const monthlyCount = shifts.filter((shift) => {
-        const start = new Date(shift.startDateTime);
-        return (
-          shift.status !== "cancelled" &&
-          shift.workplaceId === workplace.id &&
-          start >= monthStart &&
-          start <= monthEnd
-        );
-      }).length;
+  const selectedShifts = selectedDay?.shifts ?? [];
 
-      return {
-        ...workplace,
-        monthlyCount,
-      };
-    })
-    .sort((a, b) => b.monthlyCount - a.monthlyCount)
-    .slice(0, 3);
+  const topConflict = unresolvedConflicts[0];
+
+  const conflictA = topConflict
+    ? shifts.find((shift) => shift.id === topConflict.shiftAId)
+    : undefined;
+
+  const conflictB = topConflict
+    ? shifts.find((shift) => shift.id === topConflict.shiftBId)
+    : undefined;
+
+  const heroIsCurrent = heroShift
+    ? shiftState(heroShift, now) === "current"
+    : false;
+
+  const heroShadow = (
+    Platform.OS === "web"
+      ? { boxShadow: `0px 18px 42px ${tokens.ambientShadow}` }
+      : {
+          shadowColor: tokens.primary,
+          shadowOffset: { width: 0, height: 16 },
+          shadowOpacity: tokens.mode === "dark" ? 0.3 : 0.22,
+          shadowRadius: 28,
+          elevation: 8,
+        }
+  ) as ViewStyle;
+
+  const fabShadow = (
+    Platform.OS === "web"
+      ? { boxShadow: `0px 14px 30px ${tokens.ambientShadow}` }
+      : {
+          shadowColor: tokens.primary,
+          shadowOffset: { width: 0, height: 12 },
+          shadowOpacity: 0.28,
+          shadowRadius: 18,
+          elevation: 8,
+        }
+  ) as ViewStyle;
 
   return (
-    <AppScreen>
+    <AppScreen safeTop={false}>
       <View style={styles.screen}>
-        <ScrollView
-          contentContainerStyle={styles.content}
-          showsVerticalScrollIndicator={false}
-        >
-          <View
-            style={[
-              styles.header,
-              {
-                backgroundColor: `${tokens.surface}B3`,
-              },
-            ]}
-          >
-            <View style={styles.brandRow}>
-              <View
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 6,
-                }}
-              >
-                <View
-                  style={[
-                    styles.avatar,
-                    {
-                      backgroundColor: tokens.surface_container,
-                    },
-                  ]}
-                >
-                  {user?.avatarUrl ? (
-                    <Image
-                      source={{ uri: user.avatarUrl }}
-                      style={styles.avatarImage}
-                    />
-                  ) : (
-                    <AppText
-                      variant="subheading"
-                      color={tokens.primary}
-                      style={styles.brandInitial}
-                    >
-                      {user?.name?.charAt(0)?.toUpperCase() ?? "S"}
-                    </AppText>
-                  )}
-                </View>
-                <AppText
-                  variant="heading"
-                  color={tokens.primary}
-                  style={styles.brandText}
-                >
-                  ShiftBuddy
-                </AppText>
-              </View>
+        <GlassHeader>
+          <View style={styles.headerContent}>
+            <View style={styles.profileGroup}>
               <View
                 style={[
-                  styles.quickIcon,
-                  { backgroundColor: `${tokens.primary}1A` },
+                  styles.avatar,
+                  {
+                    borderRadius: tokens.radiusPill,
+                    backgroundColor: tokens.surfaceSelected,
+                  },
                 ]}
               >
-                <IconSymbol
-                  name="plus.circle.fill"
-                  size={22}
-                  style={{ borderRadius: 12 }}
-                  color={tokens.primary}
-                />
+                {user?.avatarUrl ? (
+                  <Image
+                    source={{ uri: user.avatarUrl }}
+                    style={styles.avatarImage}
+                  />
+                ) : (
+                  <AppText variant="subheading" color={tokens.primary}>
+                    {user?.name?.charAt(0)?.toUpperCase() ?? "S"}
+                  </AppText>
+                )}
               </View>
-              {/* <AppText variant="caption" color={tokens.textSecondary}> */}
 
-              {/* </AppText>
-              </View> */}
+              <View style={styles.profileCopy}>
+                <AppText variant="overline" color={tokens.primary}>
+                  ShiftBuddy
+                </AppText>
+
+                <AppText variant="caption" color={tokens.textSecondary}>
+                  {greeting(now)}, {user?.name ?? "there"}
+                </AppText>
+              </View>
             </View>
 
-            <Pressable
-              onPress={() => router.push("/(tabs)/settings")}
-              hitSlop={10}
-              style={({ pressed }) => [
-                styles.headerAction,
+            <View style={styles.headerActions}>
+              <HeaderButton
+                icon="bell-outline"
+                label="View alerts"
+                tokens={tokens}
+                onPress={() => router.push("/conflicts")}
+              />
+
+              <HeaderButton
+                icon="magnify"
+                label="View shifts"
+                tokens={tokens}
+                onPress={() => router.push("/(tabs)/shifts")}
+              />
+            </View>
+          </View>
+        </GlassHeader>
+
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.content}
+        >
+          <View style={styles.monthHeader}>
+            <AppText variant="heading" color={tokens.textPrimary}>
+              {now.toLocaleDateString(undefined, { month: "long" })}
+            </AppText>
+
+            <View
+              style={[
+                styles.weekBadge,
                 {
-                  backgroundColor: pressed
-                    ? tokens.surface_container_high
-                    : "transparent",
+                  borderRadius: tokens.radiusPill,
+                  backgroundColor: tokens.primarySoft,
                 },
               ]}
             >
-              <IconSymbol name="bell.fill" size={18} color={tokens.primary} />
-            </Pressable>
+              <AppText variant="captionBold" color={tokens.primary}>
+                WEEK {weekNumber(now)}
+              </AppText>
+            </View>
           </View>
 
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.weekSelector}
+          >
+            {weekDays.map((day) => {
+              const selected = day.key === selectedDateKey;
+
+              const dotColor = day.hasConflict
+                ? tokens.conflict
+                : day.shifts.length > 0
+                  ? tokens.primary
+                  : tokens.divider;
+
+              return (
+                <Pressable
+                  key={day.key}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected }}
+                  onPress={() => setSelectedDateKey(day.key)}
+                  style={({ pressed }) => [
+                    styles.dayPressable,
+                    { opacity: pressed ? 0.75 : 1 },
+                  ]}
+                >
+                  {selected ? (
+                    <LinearGradient
+                      colors={[
+                        tokens.primaryGradientStart,
+                        tokens.primaryGradientEnd,
+                      ]}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={[
+                        styles.dayCard,
+                        { borderRadius: tokens.radiusXLarge },
+                      ]}
+                    >
+                      <AppText variant="label" color={tokens.textOnPrimary}>
+                        {day.date
+                          .toLocaleDateString(undefined, { weekday: "short" })
+                          .toUpperCase()}
+                      </AppText>
+
+                      <AppText variant="heading" color={tokens.textOnPrimary}>
+                        {day.date.getDate()}
+                      </AppText>
+
+                      <View
+                        style={[
+                          styles.dayDot,
+                          {
+                            backgroundColor: day.hasConflict
+                              ? tokens.conflict
+                              : tokens.textOnPrimary,
+                          },
+                        ]}
+                      />
+                    </LinearGradient>
+                  ) : (
+                    <GlassSurface
+                      tokens={tokens}
+                      padding={0}
+                      style={styles.dayGlass}
+                    >
+                      <View style={styles.dayCard}>
+                        <AppText variant="label" color={tokens.textTertiary}>
+                          {day.date
+                            .toLocaleDateString(undefined, { weekday: "short" })
+                            .toUpperCase()}
+                        </AppText>
+
+                        <AppText variant="heading" color={tokens.textPrimary}>
+                          {day.date.getDate()}
+                        </AppText>
+
+                        <View
+                          style={[styles.dayDot, { backgroundColor: dotColor }]}
+                        />
+                      </View>
+                    </GlassSurface>
+                  )}
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+
           <LinearGradient
-            colors={["#c5d9ff", "#adc6ff"]}
+            colors={[tokens.primaryGradientStart, tokens.primaryGradientEnd]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
-            style={styles.heroCard}
+            style={[
+              styles.hero,
+              { borderRadius: tokens.radiusXLarge },
+              heroShadow,
+            ]}
           >
-            <View style={styles.heroOrb} />
+            <View
+              style={[
+                styles.heroOrbLarge,
+                styles.decorative,
+                { backgroundColor: tokens.glassHighlight },
+              ]}
+            />
 
-            <View style={styles.heroTopRow}>
-              <View
-                style={[
-                  styles.heroChip,
-                  { backgroundColor: `${tokens.surface_darkest}1F` },
-                ]}
-              >
-                <AppText variant="label" color={tokens.surface_darkest}>
-                  NEXT SHIFT
-                </AppText>
-              </View>
-
-              <View style={styles.heroRight}>
-                <AppText
-                  variant="captionBold"
-                  color={`${tokens.surface_darkest}B3`}
-                >
-                  STARTING IN
-                </AppText>
-                <AppText variant="title" color={tokens.surface_darkest}>
-                  {nextShift ? timeUntil(nextShift.startDateTime) : "-"}
-                </AppText>
-              </View>
-            </View>
-
-            {nextShift ? (
+            {heroShift ? (
               <>
-                <AppText
-                  variant="title"
-                  color={tokens.surface_darkest}
-                  style={styles.heroTitle}
-                >
-                  {nextShiftLabel || "Upcoming Shift"}
-                </AppText>
-                <AppText
-                  variant="bodyBold"
-                  color={`${tokens.surface_darkest}D1`}
-                  style={styles.heroSubtitle}
-                >
-                  {nextShift.title}
-                </AppText>
+                <View style={styles.heroHeader}>
+                  <View style={styles.heroTitleGroup}>
+                    <AppText variant="overline" color={tokens.textOnPrimary}>
+                      {heroIsCurrent ? "CURRENT SHIFT" : "UPCOMING SHIFT"}
+                    </AppText>
 
-                <View style={styles.heroMetaWrap}>
-                  <View style={styles.heroMetaItem}>
-                    <IconSymbol
-                      name="clock.fill"
-                      size={14}
-                      color={`${tokens.surface_darkest}A6`}
-                    />
-                    <AppText variant="bodyBold" color={tokens.surface_darkest}>
-                      {fmtTime(nextShift.startDateTime)} -{" "}
-                      {fmtTime(nextShift.endDateTime)}
+                    <AppText
+                      variant="title"
+                      color={tokens.textOnPrimary}
+                      numberOfLines={2}
+                    >
+                      {heroShift.title}
+                    </AppText>
+
+                    <AppText
+                      variant="body"
+                      color={tokens.textOnPrimary}
+                      numberOfLines={1}
+                      style={styles.heroMuted}
+                    >
+                      {heroWorkplaceLabel || "Unassigned workplace"}
                     </AppText>
                   </View>
-                  <View style={styles.heroMetaItem}>
-                    <IconSymbol
-                      name="mappin.and.ellipse"
-                      size={14}
-                      color={`${tokens.surface_darkest}A6`}
+
+                  <View
+                    style={[
+                      styles.heroIcon,
+                      {
+                        borderRadius: tokens.radiusMedium,
+                        backgroundColor: tokens.glassBackground,
+                      },
+                    ]}
+                  >
+                    <MaterialCommunityIcons
+                      name="briefcase-outline"
+                      size={24}
+                      color={tokens.textOnPrimary}
                     />
-                    <AppText variant="bodyBold" color={tokens.surface_darkest}>
-                      {fmtDate(nextShift.startDateTime)}
+                  </View>
+                </View>
+
+                <View style={styles.heroTimeRow}>
+                  <View>
+                    <AppText variant="label" color={tokens.textOnPrimary}>
+                      STARTS
+                    </AppText>
+
+                    <AppText variant="heading" color={tokens.textOnPrimary}>
+                      {formatTime(heroShift.startDateTime)}
+                    </AppText>
+                  </View>
+
+                  <View
+                    style={[
+                      styles.heroDivider,
+                      { backgroundColor: tokens.glassBorder },
+                    ]}
+                  />
+
+                  <View style={styles.heroTimeEnd}>
+                    <AppText variant="label" color={tokens.textOnPrimary}>
+                      ENDS
+                    </AppText>
+
+                    <AppText variant="heading" color={tokens.textOnPrimary}>
+                      {formatTime(heroShift.endDateTime)}
                     </AppText>
                   </View>
                 </View>
+
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => router.push("/(tabs)/shifts")}
+                  style={({ pressed }) => [
+                    styles.heroButton,
+                    {
+                      borderRadius: tokens.radiusMedium,
+                      backgroundColor: tokens.textOnPrimary,
+                      opacity: pressed ? 0.82 : 1,
+                    },
+                  ]}
+                >
+                  <MaterialCommunityIcons
+                    name="timer-outline"
+                    size={20}
+                    color={tokens.primaryPressed}
+                  />
+
+                  <AppText variant="bodyBold" color={tokens.primaryPressed}>
+                    {heroIsCurrent
+                      ? "Clock In Now"
+                      : `Starts in ${timeUntil(heroShift.startDateTime)}`}
+                  </AppText>
+                </Pressable>
               </>
             ) : (
-              <View style={styles.heroEmpty}>
-                <AppText variant="heading" color={tokens.surface_darkest}>
-                  All clear
+              <View style={styles.emptyHero}>
+                <View
+                  style={[
+                    styles.heroIcon,
+                    {
+                      borderRadius: tokens.radiusMedium,
+                      backgroundColor: tokens.glassBackground,
+                    },
+                  ]}
+                >
+                  <MaterialCommunityIcons
+                    name="calendar-check-outline"
+                    size={26}
+                    color={tokens.textOnPrimary}
+                  />
+                </View>
+
+                <AppText variant="title" color={tokens.textOnPrimary} center>
+                  Your schedule is clear
                 </AppText>
-                <AppText variant="body" color={`${tokens.surface_darkest}BF`}>
-                  No upcoming shifts right now
+
+                <AppText variant="body" color={tokens.textOnPrimary} center>
+                  Add a shift or import a schedule to see your next assignment.
                 </AppText>
+
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => router.push("/add-shift")}
+                  style={({ pressed }) => [
+                    styles.heroButton,
+                    {
+                      borderRadius: tokens.radiusMedium,
+                      backgroundColor: tokens.textOnPrimary,
+                      opacity: pressed ? 0.82 : 1,
+                    },
+                  ]}
+                >
+                  <MaterialCommunityIcons
+                    name="plus"
+                    size={20}
+                    color={tokens.primaryPressed}
+                  />
+
+                  <AppText variant="bodyBold" color={tokens.primaryPressed}>
+                    Add your first shift
+                  </AppText>
+                </Pressable>
               </View>
             )}
           </LinearGradient>
 
-          <View style={styles.quickActionGrid}>
-            <Pressable
+          <View style={styles.quickGrid}>
+            <QuickAction
+              label="Add"
+              icon="plus-box-outline"
+              color={tokens.primary}
+              tokens={tokens}
               onPress={() => router.push("/add-shift")}
-              style={({ pressed }) => [
-                styles.quickCard,
-                {
-                  borderRadius: 12,
-                  backgroundColor: pressed
-                    ? tokens.surface_container_high
-                    : tokens.surface_container,
-                  borderColor: `${tokens.outline_variant}26`,
-                },
-              ]}
-            >
-              <View
-                style={[
-                  styles.quickIcon,
-                  { backgroundColor: `${tokens.primary}1A` },
-                ]}
-              >
-                <IconSymbol
-                  name="plus.circle.fill"
-                  size={22}
-                  style={{ borderRadius: 12 }}
-                  color={tokens.primary}
-                />
-              </View>
-              <AppText variant="label" color={tokens.textSecondary}>
-                ADD SHIFT
-              </AppText>
-            </Pressable>
+            />
 
-            <Pressable
+            <QuickAction
+              label="Import"
+              icon="cloud-upload-outline"
+              color={tokens.primary}
+              tokens={tokens}
               onPress={() => router.push("/upload-shift")}
-              style={({ pressed }) => [
-                styles.quickCard,
-                {
-                  backgroundColor: pressed
-                    ? tokens.surface_container_high
-                    : tokens.surface_container,
-                  borderColor: `${tokens.outline_variant}26`,
-                },
-              ]}
-            >
-              <View
-                style={[
-                  styles.quickIcon,
-                  { backgroundColor: `${tokens.tertiary}1A` },
-                ]}
-              >
-                <IconSymbol
-                  name="camera.fill"
-                  size={22}
-                  color={tokens.tertiary}
-                />
-              </View>
-              <AppText variant="label" color={tokens.textSecondary}>
-                UPLOAD
-              </AppText>
-            </Pressable>
+            />
+
+            <QuickAction
+              label="Jobs"
+              icon="briefcase-outline"
+              color={tokens.success}
+              tokens={tokens}
+              onPress={() => router.push("/(tabs)/workplaces")}
+            />
+
+            <QuickAction
+              label="Calendar"
+              icon="calendar-month-outline"
+              color={tokens.conflict}
+              tokens={tokens}
+              onPress={() => router.push("/(tabs)/calendar")}
+            />
           </View>
 
-          <View style={styles.sectionGroup}>
-            <View style={styles.sectionHeaderLeft}>
-              <IconSymbol
-                name="exclamationmark.triangle.fill"
-                size={17}
-                color={tokens.tertiary}
-              />
-              <AppText variant="subheading" color={tokens.tertiary}>
-                Conflict Detected
-              </AppText>
-            </View>
-
-            <View
+          {topConflict && conflictA && conflictB ? (
+            <GlassSurface
+              tokens={tokens}
+              padding={16}
               style={[
                 styles.conflictCard,
                 {
-                  backgroundColor: tokens.surface_container_low,
-                  borderLeftColor: tokens.tertiary,
+                  borderRadius: tokens.radiusLarge,
+                  borderLeftColor: tokens.conflict,
+                  backgroundColor: tokens.conflictSoft,
                 },
               ]}
             >
+              <View style={styles.conflictContent}>
+                <View
+                  style={[
+                    styles.conflictIcon,
+                    {
+                      borderRadius: tokens.radiusMedium,
+                      backgroundColor: tokens.conflictSoft,
+                    },
+                  ]}
+                >
+                  <MaterialCommunityIcons
+                    name="alert-outline"
+                    size={22}
+                    color={tokens.conflict}
+                  />
+                </View>
+
+                <View style={styles.conflictCopy}>
+                  <AppText variant="captionBold" color={tokens.conflict}>
+                    CONFLICT ALERT
+                  </AppText>
+
+                  <AppText
+                    variant="caption"
+                    color={tokens.textSecondary}
+                    numberOfLines={2}
+                  >
+                    {getShiftWorkplaceLabel(conflictA, workplaces)} and{" "}
+                    {getShiftWorkplaceLabel(conflictB, workplaces)} overlap.
+                  </AppText>
+                </View>
+
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => router.push("/conflicts")}
+                  style={({ pressed }) => [
+                    styles.solveButton,
+                    {
+                      borderRadius: tokens.radiusSmall,
+                      backgroundColor: tokens.conflictSoft,
+                      opacity: pressed ? 0.7 : 1,
+                    },
+                  ]}
+                >
+                  <AppText variant="label" color={tokens.conflict}>
+                    SOLVE
+                  </AppText>
+                </Pressable>
+              </View>
+            </GlassSurface>
+          ) : null}
+
+          <View style={styles.sectionHeader}>
+            <View>
+              <AppText variant="heading" color={tokens.textPrimary}>
+                Timeline
+              </AppText>
+
+              <AppText variant="caption" color={tokens.textSecondary}>
+                {selectedDay ? formatDate(selectedDay.date) : ""}
+              </AppText>
+            </View>
+
+            <SegmentToggle
+              tokens={tokens}
+              activeKey="today"
+              options={[
+                { key: "today", label: "Today" },
+                { key: "list", label: "List" },
+              ]}
+              onSelect={(key) => {
+                if (key === "list") {
+                  router.push("/(tabs)/shifts");
+                  return;
+                }
+
+                setSelectedDateKey(todayKey);
+              }}
+            />
+          </View>
+
+          {selectedShifts.length === 0 ? (
+            <GlassSurface tokens={tokens} strong padding={24}>
+              <View style={styles.emptyTimeline}>
+                <View
+                  style={[
+                    styles.emptyTimelineIcon,
+                    {
+                      borderRadius: tokens.radiusPill,
+                      backgroundColor: tokens.primarySoft,
+                    },
+                  ]}
+                >
+                  <MaterialCommunityIcons
+                    name="calendar-blank-outline"
+                    size={24}
+                    color={tokens.primary}
+                  />
+                </View>
+
+                <AppText variant="subheading" color={tokens.textPrimary}>
+                  No shifts scheduled
+                </AppText>
+
+                <AppText variant="body" color={tokens.textSecondary} center>
+                  This day is free. Add a shift whenever your schedule changes.
+                </AppText>
+              </View>
+            </GlassSurface>
+          ) : (
+            <View style={styles.timeline}>
               <View
                 style={[
-                  styles.conflictGlow,
-                  { backgroundColor: `${tokens.tertiary}14` },
+                  styles.timelineTrack,
+                  { backgroundColor: tokens.primarySoft },
                 ]}
               />
 
-              {topConflict && conflictShiftA && conflictShiftB ? (
-                <>
-                  <AppText
-                    variant="body"
-                    color={tokens.textSecondary}
-                    style={styles.conflictIntro}
-                  >
-                    You have two overlapping assignments on{" "}
-                    {fmtDate(conflictShiftA.startDateTime)}.
-                  </AppText>
-
-                  <View style={styles.conflictRows}>
-                    <View
-                      style={[
-                        styles.conflictRow,
-                        {
-                          backgroundColor: tokens.surface_container,
-                        },
-                      ]}
-                    >
-                      <View>
-                        <AppText variant="captionBold" color={tokens.primary}>
-                          {conflictLabelA ?? "Unassigned Shift"}
-                        </AppText>
-                        <AppText variant="bodyBold" color={tokens.textPrimary}>
-                          {conflictShiftA.title}
-                        </AppText>
-                      </View>
-                      <AppText variant="caption" color={tokens.textSecondary}>
-                        {fmtTime(conflictShiftA.startDateTime)} -{" "}
-                        {fmtTime(conflictShiftA.endDateTime)}
-                      </AppText>
-                    </View>
-
-                    <View
-                      style={[
-                        styles.conflictRow,
-                        {
-                          backgroundColor: tokens.surface_container,
-                        },
-                      ]}
-                    >
-                      <View>
-                        <AppText variant="captionBold" color={tokens.tertiary}>
-                          {conflictLabelB ?? "Unassigned Shift"}
-                        </AppText>
-                        <AppText variant="bodyBold" color={tokens.textPrimary}>
-                          {conflictShiftB.title}
-                        </AppText>
-                      </View>
-                      <AppText variant="caption" color={tokens.textSecondary}>
-                        {fmtTime(conflictShiftB.startDateTime)} -{" "}
-                        {fmtTime(conflictShiftB.endDateTime)}
-                      </AppText>
-                    </View>
-                  </View>
-                </>
-              ) : (
-                <AppText
-                  variant="body"
-                  color={tokens.textSecondary}
-                  style={styles.conflictIntro}
-                >
-                  No overlapping assignments right now.
-                </AppText>
-              )}
-
-              <Pressable
-                onPress={() => router.push("/conflicts")}
-                style={({ pressed }) => [
-                  styles.resolveButton,
-                  {
-                    backgroundColor: tokens.surface_container_highest,
-                    opacity: pressed ? 0.85 : 1,
-                  },
-                ]}
-              >
-                <AppText
-                  variant="bodyBold"
-                  color={topConflict ? tokens.tertiary : tokens.textSecondary}
-                  center
-                  style={topConflict ? undefined : styles.resolveTextMuted}
-                >
-                  Resolve Scheduling
-                </AppText>
-              </Pressable>
-            </View>
-          </View>
-
-          <View style={styles.sectionGroup}>
-            <View style={styles.scheduleHeader}>
-              <AppText variant="subheading" color={tokens.textPrimary}>
-                Today&apos;s Schedule
-              </AppText>
-              <AppText variant="label" color={tokens.outline}>
-                {now.toLocaleDateString(undefined, {
-                  month: "short",
-                  day: "numeric",
-                  year: "numeric",
-                })}
-              </AppText>
-            </View>
-
-            {todayShifts.length === 0 ? (
-              <View
-                style={[
-                  styles.emptyCard,
-                  {
-                    backgroundColor: tokens.surface_container_low,
-                  },
-                ]}
-              >
-                <AppText variant="body" color={tokens.textSecondary} center>
-                  No shifts scheduled for today
-                </AppText>
-              </View>
-            ) : (
-              todayShifts.map((shift) => {
+              {selectedShifts.map((shift) => {
                 const workplace = workplaces.find(
                   (item) => item.id === shift.workplaceId,
                 );
@@ -569,225 +957,140 @@ export default function HomeScreen() {
                   workplaces,
                 );
 
-                const markerColor =
-                  shift.associationType === "temporary"
-                    ? tokens.tertiary
-                    : shift.associationType === "unassigned"
-                      ? tokens.outline
-                      : (workplace?.color ?? tokens.primary);
+                const state = shiftState(shift, now);
 
-                const ended =
-                  new Date(shift.endDateTime).getTime() < now.getTime();
-                const ongoing =
-                  new Date(shift.startDateTime).getTime() <= now.getTime() &&
-                  new Date(shift.endDateTime).getTime() >= now.getTime();
+                const current = state === "current";
 
-                const cardStyle: ViewStyle = {
-                  backgroundColor: ongoing
-                    ? tokens.surface_container
-                    : tokens.surface_container_low,
-                };
+                const marker = workplace?.color ?? tokens.primary;
+
+                const badge = {
+                  current: { label: "CURRENT", variant: "accent" as const },
+                  upcoming: { label: "UPCOMING", variant: "accent" as const },
+                  completed: {
+                    label: "COMPLETED",
+                    variant: "default" as const,
+                  },
+                  cancelled: { label: "CANCELLED", variant: "error" as const },
+                }[state];
 
                 return (
-                  <View key={shift.id} style={[styles.scheduleCard, cardStyle]}>
-                    <View style={styles.scheduleRow}>
-                      <View style={styles.scheduleLeft}>
-                        <View
-                          style={[
-                            styles.scheduleMarker,
-                            {
-                              backgroundColor: markerColor,
-                              opacity: ended ? 0.45 : 1,
-                            },
-                          ]}
-                        />
-                        <View>
+                  <View key={shift.id} style={styles.timelineItem}>
+                    <View
+                      style={[
+                        styles.markerShell,
+                        {
+                          borderRadius: tokens.radiusPill,
+                          backgroundColor: tokens.surfaceElevated,
+                        },
+                      ]}
+                    >
+                      <View
+                        style={[
+                          styles.marker,
+                          {
+                            borderRadius: tokens.radiusPill,
+                            backgroundColor: current ? tokens.primary : marker,
+                          },
+                        ]}
+                      />
+                    </View>
+
+                    <View
+                      style={[
+                        styles.timelineCard,
+                        {
+                          borderRadius: tokens.radiusLarge,
+                          backgroundColor: current
+                            ? tokens.surfaceSelected
+                            : tokens.surfaceElevated,
+                          borderLeftColor: current ? tokens.primary : marker,
+                        },
+                      ]}
+                    >
+                      <View style={styles.timelineHeader}>
+                        <View style={styles.timelineTitle}>
                           <AppText
-                            variant="bodyBold"
-                            color={tokens.textPrimary}
+                            variant="captionBold"
+                            color={current ? tokens.primary : marker}
                           >
-                            {workplaceLabel}
+                            {formatTime(shift.startDateTime)} –{" "}
+                            {formatTime(shift.endDateTime)}
                           </AppText>
+
                           <AppText
-                            variant="caption"
-                            color={tokens.textSecondary}
+                            variant="subheading"
+                            color={tokens.textPrimary}
+                            numberOfLines={1}
                           >
                             {shift.title}
                           </AppText>
                         </View>
+
+                        <AppBadge label={badge.label} variant={badge.variant} />
                       </View>
 
-                      <View style={styles.scheduleRight}>
-                        <AppText
-                          variant="bodyBold"
-                          color={ongoing ? tokens.primary : tokens.textPrimary}
-                        >
-                          {fmtTime(shift.startDateTime)} -{" "}
-                          {fmtTime(shift.endDateTime)}
-                        </AppText>
-                        <AppBadge
-                          label={
-                            ongoing
-                              ? "UPCOMING"
-                              : ended
-                                ? "COMPLETED"
-                                : shift.status.toUpperCase()
-                          }
-                          variant={
-                            ongoing ? "accent" : ended ? "default" : "warning"
-                          }
+                      <View style={styles.timelineMeta}>
+                        <MaterialCommunityIcons
+                          name="briefcase-outline"
+                          size={15}
+                          color={tokens.iconSecondary}
                         />
+
+                        <AppText
+                          variant="caption"
+                          color={tokens.textSecondary}
+                          numberOfLines={1}
+                          style={styles.flexText}
+                        >
+                          {workplaceLabel}
+                        </AppText>
                       </View>
+
+                      {shift.notes ? (
+                        <AppText
+                          variant="caption"
+                          color={tokens.textTertiary}
+                          numberOfLines={2}
+                          style={styles.timelineNotes}
+                        >
+                          {shift.notes}
+                        </AppText>
+                      ) : null}
                     </View>
                   </View>
                 );
-              })
-            )}
-          </View>
-
-          <View style={styles.sectionGroup}>
-            <AppText
-              variant="subheading"
-              color={tokens.textPrimary}
-              style={styles.sectionTitleSpacing}
-            >
-              This Week
-            </AppText>
-
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.weekScroll}
-            >
-              {weekBuckets.map((bucket) => {
-                const isToday = bucket.key === todayKey;
-                return (
-                  <View
-                    key={bucket.key}
-                    style={[
-                      styles.weekCard,
-                      {
-                        backgroundColor: isToday
-                          ? `${tokens.primary_container}29`
-                          : tokens.surface_container_low,
-                      },
-                    ]}
-                  >
-                    <AppText
-                      variant="label"
-                      color={isToday ? tokens.primary : tokens.textSecondary}
-                    >
-                      {bucket.day.toLocaleDateString(undefined, {
-                        weekday: "short",
-                        day: "numeric",
-                      })}
-                    </AppText>
-
-                    <View
-                      style={[
-                        styles.weekBar,
-                        {
-                          backgroundColor: bucket.hasConflict
-                            ? `${tokens.tertiary}99`
-                            : isToday
-                              ? tokens.primary
-                              : `${tokens.primary}4D`,
-                        },
-                      ]}
-                    />
-
-                    <AppText
-                      variant="heading"
-                      color={isToday ? tokens.primary : tokens.textPrimary}
-                    >
-                      {bucket.totalHours.toFixed(0)}h
-                    </AppText>
-                  </View>
-                );
               })}
-            </ScrollView>
-          </View>
-
-          <View style={styles.sectionGroup}>
-            <View style={styles.sectionHeaderInline}>
-              <AppText variant="subheading" color={tokens.textPrimary}>
-                Workplaces
-              </AppText>
-              <Pressable onPress={() => router.push("/(tabs)/workplaces")}>
-                <AppText variant="captionBold" color={tokens.primary}>
-                  Manage
-                </AppText>
-              </Pressable>
             </View>
+          )}
 
-            {workplaceSummary.length === 0 ? (
-              <View
-                style={[
-                  styles.emptyCard,
-                  {
-                    backgroundColor: tokens.surface_container_low,
-                  },
-                ]}
-              >
-                <AppText variant="body" color={tokens.textSecondary} center>
-                  Add your first workplace to start tracking
-                </AppText>
-              </View>
-            ) : (
-              workplaceSummary.map((workplace) => (
-                <Pressable
-                  key={workplace.id}
-                  onPress={() => router.push("/(tabs)/workplaces")}
-                  style={({ pressed }) => [
-                    styles.workplaceCard,
-                    {
-                      backgroundColor: pressed
-                        ? tokens.surface_container
-                        : tokens.surface_container_low,
-                    },
-                  ]}
-                >
-                  <View style={styles.workplaceLeft}>
-                    <View
-                      style={[
-                        styles.workplaceDot,
-                        {
-                          backgroundColor: workplace.color || tokens.primary,
-                        },
-                      ]}
-                    />
-                    <AppText variant="bodyBold" color={tokens.textPrimary}>
-                      {workplace.name}
-                    </AppText>
-                  </View>
-
-                  <AppText variant="captionBold" color={tokens.textSecondary}>
-                    {workplace.monthlyCount} shifts/mo
-                  </AppText>
-                </Pressable>
-              ))
-            )}
-          </View>
-
-          <View style={styles.bottomSpace} />
+          <View style={styles.bottomSpacer} />
         </ScrollView>
 
         <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Add shift"
           onPress={() => router.push("/add-shift")}
           style={({ pressed }) => [
             styles.fab,
             {
-              opacity: pressed ? 0.85 : 1,
+              borderRadius: tokens.radiusLarge,
+              opacity: pressed ? 0.78 : 1,
+              transform: [{ scale: pressed ? 0.96 : 1 }],
             },
+            fabShadow,
           ]}
         >
           <LinearGradient
-            colors={["#c5d9ff", "#adc6ff"]}
+            colors={[tokens.primaryGradientStart, tokens.primaryGradientEnd]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={styles.fabGradient}
           >
-            <IconSymbol name="plus" size={30} color={tokens.surface_darkest} />
+            <MaterialCommunityIcons
+              name="plus"
+              size={30}
+              color={tokens.textOnPrimary}
+            />
           </LinearGradient>
         </Pressable>
       </View>
@@ -799,270 +1102,376 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
   },
+
   content: {
-    paddingHorizontal: 24,
-    paddingTop: 10,
+    paddingHorizontal: 20,
+    paddingTop: 16,
     paddingBottom: 150,
-    gap: 20,
+    gap: 24,
   },
-  header: {
-    minHeight: 64,
-    borderRadius: 20,
-    paddingHorizontal: 14,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+
+  decorative: {
+    pointerEvents: "none",
   },
-  brandRow: {
-    flex: 1,
+
+  glass: {
+    overflow: "hidden",
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+
+  glassHighlight: {
+    position: "absolute",
+    top: 0,
+    left: 20,
+    right: 20,
+    height: 1,
+    opacity: 0.68,
+  },
+
+  headerContent: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     gap: 12,
   },
+
+  profileGroup: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 11,
+  },
+
   avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    overflow: "hidden",
+    width: 42,
+    height: 42,
     alignItems: "center",
     justifyContent: "center",
+    overflow: "hidden",
   },
+
   avatarImage: {
     width: "100%",
     height: "100%",
   },
-  brandInitial: {
-    fontWeight: "800",
-  },
-  brandText: {
-    fontWeight: "800",
-    letterSpacing: -0.2,
-  },
-  headerAction: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  heroCard: {
-    borderRadius: 26,
-    padding: 22,
-    overflow: "hidden",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 24 },
-    shadowOpacity: 0.4,
-    shadowRadius: 48,
-    elevation: 16,
-  },
-  heroOrb: {
-    position: "absolute",
-    right: -40,
-    top: -36,
-    width: 180,
-    height: 180,
-    borderRadius: 90,
-    backgroundColor: "rgba(255, 255, 255, 0.15)",
-  },
-  heroTopRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: 18,
-  },
-  heroChip: {
-    borderRadius: 999,
-    paddingHorizontal: 13,
-    paddingVertical: 6,
-  },
-  heroRight: {
-    alignItems: "flex-end",
+
+  profileCopy: {
+    flex: 1,
+    minWidth: 0,
     gap: 2,
   },
-  heroTitle: {
-    marginBottom: 2,
-  },
-  heroSubtitle: {
-    marginBottom: 16,
-  },
-  heroMetaWrap: {
+
+  headerActions: {
+    flexDirection: "row",
     gap: 8,
   },
-  heroMetaItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 7,
-  },
-  heroEmpty: {
-    gap: 6,
-    paddingVertical: 6,
-  },
-  quickActionGrid: {
-    flexDirection: "row",
-    gap: 12,
-  },
-  quickCard: {
-    flex: 1,
-    borderRadius: 20,
-    borderWidth: 1,
-    minHeight: 106,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 10,
-  },
-  quickIcon: {
-    width: 46,
-    height: 46,
-    borderRadius: 12,
+
+  headerButton: {
+    width: 40,
+    height: 40,
     alignItems: "center",
     justifyContent: "center",
   },
-  sectionGroup: {
-    gap: 12,
-  },
-  sectionHeaderLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    paddingHorizontal: 2,
-  },
-  conflictCard: {
-    borderRadius: 24,
-    padding: 18,
-    borderLeftWidth: 4,
-    overflow: "hidden",
-  },
-  conflictGlow: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  conflictIntro: {
-    marginBottom: 10,
-  },
-  conflictRows: {
-    gap: 8,
-  },
-  conflictRow: {
-    borderRadius: 14,
-    padding: 12,
+
+  monthHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: 8,
+    paddingHorizontal: 2,
   },
-  resolveButton: {
-    marginTop: 14,
-    borderRadius: 999,
-    minHeight: 46,
-    alignItems: "center",
-    justifyContent: "center",
+
+  weekBadge: {
     paddingHorizontal: 12,
+    paddingVertical: 7,
   },
-  resolveTextMuted: {
-    opacity: 0.9,
-  },
-  scheduleHeader: {
-    flexDirection: "row",
-    alignItems: "flex-end",
-    justifyContent: "space-between",
-    paddingHorizontal: 2,
-  },
-  emptyCard: {
-    borderRadius: 18,
-    minHeight: 74,
-    justifyContent: "center",
-    paddingHorizontal: 16,
-  },
-  scheduleCard: {
-    borderRadius: 18,
-    paddingHorizontal: 14,
-    paddingVertical: 13,
-  },
-  scheduleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+
+  weekSelector: {
     gap: 10,
+    paddingVertical: 2,
+    paddingHorizontal: 1,
   },
-  scheduleLeft: {
-    flexDirection: "row",
+
+  dayPressable: {
+    width: 64,
+  },
+
+  dayGlass: {
+    width: 64,
+    minHeight: 90,
+  },
+
+  dayCard: {
+    width: 64,
+    minHeight: 90,
+    paddingVertical: 14,
     alignItems: "center",
-    gap: 12,
-    flex: 1,
+    justifyContent: "center",
+    gap: 5,
   },
-  scheduleRight: {
-    alignItems: "flex-end",
+
+  dayDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginTop: 2,
+  },
+
+  hero: {
+    position: "relative",
+    overflow: "hidden",
+    padding: 22,
+  },
+
+  heroOrbLarge: {
+    position: "absolute",
+    top: -75,
+    right: -55,
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    opacity: 0.14,
+  },
+
+  heroHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 16,
+  },
+
+  heroTitleGroup: {
+    flex: 1,
+    minWidth: 0,
     gap: 4,
   },
-  scheduleMarker: {
-    width: 5,
-    height: 36,
-    borderRadius: 4,
+
+  heroMuted: {
+    opacity: 0.82,
   },
-  sectionTitleSpacing: {
-    paddingHorizontal: 2,
+
+  heroIcon: {
+    width: 46,
+    height: 46,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  weekScroll: {
-    gap: 10,
-    paddingBottom: 4,
+
+  heroTimeRow: {
+    marginTop: 24,
+    paddingVertical: 17,
+    marginBottom: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
-  weekCard: {
-    minWidth: 114,
-    borderRadius: 20,
+
+  heroDivider: {
+    width: StyleSheet.hairlineWidth,
+    height: 38,
+    opacity: 0.5,
+  },
+
+  heroTimeEnd: {
+    alignItems: "flex-end",
+  },
+
+  heroButton: {
+    minHeight: 50,
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 14,
+    paddingHorizontal: 16,
   },
-  weekBar: {
-    width: 40,
-    height: 4,
-    borderRadius: 3,
-  },
-  sectionHeaderInline: {
-    flexDirection: "row",
+
+  emptyHero: {
     alignItems: "center",
+    gap: 12,
+    paddingVertical: 10,
+  },
+
+  quickGrid: {
+    flexDirection: "row",
+    width: "100%",
+    // flexWrap: "wrap",
     justifyContent: "space-between",
-    paddingHorizontal: 2,
-  },
-  workplaceCard: {
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    minHeight: 56,
-    flexDirection: "row",
+    // gap: 10,
     alignItems: "center",
-    justifyContent: "space-between",
   },
-  workplaceLeft: {
-    flexDirection: "row",
+
+  quickWrap: {
+    flex: 1,
+    minWidth: 0,
     alignItems: "center",
-    gap: 10,
+    // gap: 8,
   },
-  workplaceDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
+
+  quickButtonText: {
+    // textAlign: "center",
+    // marginTop: 4,
   },
-  bottomSpace: {
-    height: 8,
+
+  quickSurface: {
+    width: "100%",
+    // aspectRatio: 1,
+    // padding: 10,
   },
-  fab: {
-    position: "absolute",
-    right: 24,
-    bottom: 94,
-    borderRadius: 12,
-    overflow: "hidden",
-    shadowColor: "#000",
-    shadowOpacity: 0.36,
-    shadowOffset: { width: 0, height: 16 },
-    shadowRadius: 24,
-    elevation: 10,
-  },
-  fabGradient: {
-    width: 56,
-    height: 56,
+
+  quickButton: {
+    flex: 1,
     alignItems: "center",
     justifyContent: "center",
+  },
+
+  conflictCard: {
+    borderLeftWidth: 4,
+  },
+
+  conflictContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+
+  conflictIcon: {
+    width: 42,
+    height: 42,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  conflictCopy: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2,
+  },
+
+  solveButton: {
+    minHeight: 36,
+    paddingHorizontal: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    justifyContent: "space-between",
+    gap: 16,
+    paddingHorizontal: 2,
+  },
+
+  segmentTrack: {
+    flexDirection: "row",
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: 3,
+    gap: 2,
+  },
+
+  segmentItem: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+  },
+
+  emptyTimeline: {
+    alignItems: "center",
+    gap: 8,
+  },
+
+  emptyTimelineIcon: {
+    width: 48,
+    height: 48,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 4,
+  },
+
+  timeline: {
+    position: "relative",
+    gap: 18,
+  },
+
+  timelineTrack: {
+    position: "absolute",
+    left: 19,
+    top: 8,
+    bottom: 8,
+    width: 2,
+  },
+
+  timelineItem: {
+    position: "relative",
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+    paddingLeft: 2,
+  },
+
+  markerShell: {
+    width: 36,
+    height: 36,
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 1,
+  },
+
+  marker: {
+    width: 12,
+    height: 12,
+  },
+
+  timelineCard: {
+    flex: 1,
+    minWidth: 0,
+    padding: 16,
+    borderLeftWidth: 4,
+  },
+
+  timelineHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+
+  timelineTitle: {
+    flex: 1,
+    minWidth: 0,
+    gap: 3,
+  },
+
+  timelineMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 10,
+  },
+
+  timelineNotes: {
+    marginTop: 8,
+  },
+
+  flexText: {
+    flex: 1,
+    minWidth: 0,
+  },
+
+  fab: {
+    position: "absolute",
+    right: 20,
+    bottom: 96,
+    overflow: "hidden",
+  },
+
+  fabGradient: {
+    width: 58,
+    height: 58,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  bottomSpacer: {
+    height: 10,
   },
 });
