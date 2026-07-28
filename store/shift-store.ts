@@ -18,6 +18,7 @@ const KEYS = {
   user: "shiftbuddy_user",
   workplaces: "shiftbuddy_workplaces",
   shifts: "shiftbuddy_shifts",
+  conflicts: "shiftbuddy_conflicts",
 } as const;
 
 async function save<T>(key: string, value: T): Promise<void> {
@@ -27,6 +28,24 @@ async function save<T>(key: string, value: T): Promise<void> {
 async function load<T>(key: string): Promise<T | null> {
   const raw = await AsyncStorage.getItem(key);
   return raw ? (JSON.parse(raw) as T) : null;
+}
+
+/**
+ * detectConflicts() only knows about shifts, not resolution history, so a
+ * fresh call after every mutation would silently wipe out any "resolved"
+ * flags the user already set. This carries `resolved` forward by matching
+ * on the pair's stable id (see conflictId() in utils/conflicts.ts).
+ */
+function mergeConflicts(
+  previous: ShiftConflict[],
+  next: ShiftConflict[],
+): ShiftConflict[] {
+  const previousById = new Map(previous.map((c) => [c.id, c]));
+
+  return next.map((conflict) => {
+    const existing = previousById.get(conflict.id);
+    return existing?.resolved ? { ...conflict, resolved: true } : conflict;
+  });
 }
 
 // ─── State interface ─────────────────────────────────────────────────
@@ -71,17 +90,21 @@ export const useShiftStore = create<ShiftState>((set, get) => ({
 
   hydrate: async () => {
     try {
-      const [user, workplaces, shifts] = await Promise.all([
+      const [user, workplaces, shifts, persistedConflicts] = await Promise.all([
         load<UserProfile>(KEYS.user),
         load<Workplace[]>(KEYS.workplaces),
         load<Shift[]>(KEYS.shifts),
+        load<ShiftConflict[]>(KEYS.conflicts),
       ]);
       const loadedShifts = shifts ?? [];
       set({
         user: user ?? null,
         workplaces: workplaces ?? [],
         shifts: loadedShifts,
-        conflicts: detectConflicts(loadedShifts),
+        conflicts: mergeConflicts(
+          persistedConflicts ?? [],
+          detectConflicts(loadedShifts),
+        ),
         hydrated: true,
       });
     } catch {
@@ -110,8 +133,10 @@ export const useShiftStore = create<ShiftState>((set, get) => ({
     set((s) => {
       if (s.shifts.some((e) => e.id === shift.id)) return s; // dedup guard
       const updated = [...s.shifts, shift];
+      const conflicts = mergeConflicts(s.conflicts, detectConflicts(updated));
       save(KEYS.shifts, updated).catch(console.warn);
-      return { shifts: updated, conflicts: detectConflicts(updated) };
+      save(KEYS.conflicts, conflicts).catch(console.warn);
+      return { shifts: updated, conflicts };
     });
   },
 
@@ -122,16 +147,20 @@ export const useShiftStore = create<ShiftState>((set, get) => ({
           ? { ...sh, ...partial, updatedAt: new Date().toISOString() }
           : sh,
       );
+      const conflicts = mergeConflicts(s.conflicts, detectConflicts(updated));
       save(KEYS.shifts, updated).catch(console.warn);
-      return { shifts: updated, conflicts: detectConflicts(updated) };
+      save(KEYS.conflicts, conflicts).catch(console.warn);
+      return { shifts: updated, conflicts };
     });
   },
 
   removeShift: (id) => {
     set((s) => {
       const updated = s.shifts.filter((sh) => sh.id !== id);
+      const conflicts = mergeConflicts(s.conflicts, detectConflicts(updated));
       save(KEYS.shifts, updated).catch(console.warn);
-      return { shifts: updated, conflicts: detectConflicts(updated) };
+      save(KEYS.conflicts, conflicts).catch(console.warn);
+      return { shifts: updated, conflicts };
     });
   },
 
@@ -145,12 +174,15 @@ export const useShiftStore = create<ShiftState>((set, get) => ({
         (shift) => !idsToRemove.has(shift.id),
       );
 
-      save(KEYS.shifts, updated).catch(console.warn);
+      const conflicts = mergeConflicts(
+        state.conflicts,
+        detectConflicts(updated),
+      );
 
-      return {
-        shifts: updated,
-        conflicts: detectConflicts(updated),
-      };
+      save(KEYS.shifts, updated).catch(console.warn);
+      save(KEYS.conflicts, conflicts).catch(console.warn);
+
+      return { shifts: updated, conflicts };
     });
   },
   cancelShift: (id) => {
@@ -164,8 +196,10 @@ export const useShiftStore = create<ShiftState>((set, get) => ({
             }
           : sh,
       );
+      const conflicts = mergeConflicts(s.conflicts, detectConflicts(updated));
       save(KEYS.shifts, updated).catch(console.warn);
-      return { shifts: updated, conflicts: detectConflicts(updated) };
+      save(KEYS.conflicts, conflicts).catch(console.warn);
+      return { shifts: updated, conflicts };
     });
   },
 
@@ -202,10 +236,12 @@ export const useShiftStore = create<ShiftState>((set, get) => ({
   // ── Conflicts ──────────────────────────────────────────────────
 
   resolveConflict: (conflictId) => {
-    set((s) => ({
-      conflicts: s.conflicts.map((c) =>
+    set((s) => {
+      const conflicts = s.conflicts.map((c) =>
         c.id === conflictId ? { ...c, resolved: true } : c,
-      ),
-    }));
+      );
+      save(KEYS.conflicts, conflicts).catch(console.warn);
+      return { conflicts };
+    });
   },
 }));
