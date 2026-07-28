@@ -1,6 +1,6 @@
 import * as Crypto from "expo-crypto";
-import { router } from "expo-router";
-import React, { useState } from "react";
+import { router, useLocalSearchParams } from "expo-router";
+import React, { useMemo, useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, View } from "react-native";
 
 import { AppButton } from "@/components/ui/app-button";
@@ -32,15 +32,30 @@ const PRESET_COLORS = [
 // ─── Component ──────────────────────────────────────────────────────
 export default function AddWorkplaceScreen() {
   const { colors, theme } = useAppTheme();
+  const { id: editId } = useLocalSearchParams<{ id?: string }>();
+  const workplaces = useShiftStore((s) => s.workplaces);
   const addWorkplace = useShiftStore((s) => s.addWorkplace);
+  const updateWorkplace = useShiftStore((s) => s.updateWorkplace);
   const r = theme.tokens.radiusScale;
 
+  const existingWorkplace = useMemo(
+    () => workplaces.find((w) => w.id === editId) ?? null,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [editId],
+  );
+
   // Form state
-  const [name, setName] = useState("");
-  const [color, setColor] = useState(PRESET_COLORS[0]);
-  const [hourlyRate, setHourlyRate] = useState("");
-  const [address, setAddress] = useState("");
-  const [notes, setNotes] = useState("");
+  const [name, setName] = useState(existingWorkplace?.name ?? "");
+  const [color, setColor] = useState(
+    existingWorkplace?.color ?? PRESET_COLORS[0],
+  );
+  const [hourlyRate, setHourlyRate] = useState(
+    existingWorkplace?.hourlyRate !== undefined
+      ? String(existingWorkplace.hourlyRate)
+      : "",
+  );
+  const [address, setAddress] = useState(existingWorkplace?.address ?? "");
+  const [notes, setNotes] = useState(existingWorkplace?.notes ?? "");
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const handleSave = () => {
@@ -50,6 +65,21 @@ export default function AddWorkplaceScreen() {
       errs.hourlyRate = "Must be a number";
     if (Object.keys(errs).length > 0) {
       setErrors(errs);
+      return;
+    }
+
+    if (existingWorkplace) {
+      updateWorkplace(existingWorkplace.id, {
+        name: name.trim(),
+        color,
+        address: address.trim() || undefined,
+        hourlyRate: hourlyRate ? Number(hourlyRate) : undefined,
+        notes: notes.trim() || undefined,
+      });
+
+      Alert.alert("Workplace Updated", `"${name.trim()}" has been saved.`, [
+        { text: "OK", onPress: () => router.back() },
+      ]);
       return;
     }
 
@@ -84,7 +114,7 @@ export default function AddWorkplaceScreen() {
             <IconSymbol name="chevron.left" size={24} color={colors.accent} />
           </Pressable>
           <AppText variant="heading" style={styles.flex1} center>
-            Add Workplace
+            {existingWorkplace ? "Edit Workplace" : "Add Workplace"}
           </AppText>
           <View style={styles.headerSpacer} />
         </View>
@@ -218,7 +248,7 @@ export default function AddWorkplaceScreen() {
         {/* ── Actions ── */}
         <View style={styles.actions}>
           <AppButton
-            label="Save Workplace"
+            label={existingWorkplace ? "Save Changes" : "Save Workplace"}
             variant="primary"
             size="lg"
             fullWidth
