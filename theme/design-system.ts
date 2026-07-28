@@ -139,7 +139,31 @@ export function conflictCardStyle(tokens: ThemeTokens): ViewStyle {
  * Lithographic gradient from primary to primary_container
  */
 export function buttonGradientColors(tokens: ThemeTokens): [string, string] {
-  return [tokens.primary, tokens.primary_container];
+  return [tokens.primaryGradientStart, tokens.primaryGradientEnd];
+}
+
+/**
+ * FONT FAMILY RESOLUTION
+ *
+ * @expo-google-fonts ships each weight as its own statically-named font
+ * (e.g. "Manrope_800ExtraBold"), not a single variable-weight family. This
+ * resolves the design system's (family, weight) pairs to the exact loaded
+ * font key so the real Manrope/Inter glyphs render instead of silently
+ * falling back to the platform system font (San Francisco / Roboto).
+ */
+export function resolveFontFamily(
+  family: "Manrope" | "Inter",
+  weight: number,
+): string {
+  if (family === "Manrope") {
+    if (weight >= 800) return "Manrope_800ExtraBold";
+    if (weight >= 700) return "Manrope_700Bold";
+    return "Manrope_600SemiBold";
+  }
+
+  if (weight >= 700) return "Inter_700Bold";
+  if (weight >= 600) return "Inter_600SemiBold";
+  return "Inter_400Regular";
 }
 
 /**
