@@ -1,5 +1,5 @@
 import * as Crypto from "expo-crypto";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import React, { useMemo, useState } from "react";
 import {
   Alert,
@@ -28,6 +28,8 @@ const pad = (n: number) => String(n).padStart(2, "0");
 const toLocalDateStr = (d: Date) =>
   `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
+const toLocalTimeStr = (d: Date) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+
 const parseDateTimeLocal = (date: string, time: string): Date => {
   const [y, m, d] = date.split("-").map(Number);
   const [h, min] = time.split(":").map(Number);
@@ -42,17 +44,41 @@ const formatHoursLabel = (hours: number) => {
 
 export default function AddShiftScreen() {
   const { colors, theme } = useAppTheme();
+  const { id: editId } = useLocalSearchParams<{ id?: string }>();
   const workplaces = useShiftStore((s) => s.workplaces);
   const shifts = useShiftStore((s) => s.shifts);
   const addShift = useShiftStore((s) => s.addShift);
+  const updateShift = useShiftStore((s) => s.updateShift);
 
-  const [title, setTitle] = useState("");
-  const [workplaceId, setWorkplaceId] = useState(workplaces[0]?.id ?? "");
-  const [date, setDate] = useState(toLocalDateStr(new Date()));
-  const [startTime, setStartTime] = useState("09:00");
-  const [endTime, setEndTime] = useState("17:00");
-  const [notes, setNotes] = useState("");
-  const [status, setStatus] = useState<ShiftStatus>("confirmed");
+  const existingShift = useMemo(
+    () => shifts.find((s) => s.id === editId) ?? null,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [editId],
+  );
+
+  const [title, setTitle] = useState(existingShift?.title ?? "");
+  const [workplaceId, setWorkplaceId] = useState(
+    existingShift?.workplaceId ?? workplaces[0]?.id ?? "",
+  );
+  const [date, setDate] = useState(
+    existingShift
+      ? toLocalDateStr(new Date(existingShift.startDateTime))
+      : toLocalDateStr(new Date()),
+  );
+  const [startTime, setStartTime] = useState(
+    existingShift
+      ? toLocalTimeStr(new Date(existingShift.startDateTime))
+      : "09:00",
+  );
+  const [endTime, setEndTime] = useState(
+    existingShift
+      ? toLocalTimeStr(new Date(existingShift.endDateTime))
+      : "17:00",
+  );
+  const [notes, setNotes] = useState(existingShift?.notes ?? "");
+  const [status, setStatus] = useState<ShiftStatus>(
+    existingShift?.status ?? "confirmed",
+  );
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const selectedWorkplace = useMemo(
@@ -89,6 +115,7 @@ export default function AddShiftScreen() {
 
     const overlapping = shifts.find((shift) => {
       if (shift.status === "cancelled") return false;
+      if (existingShift && shift.id === existingShift.id) return false;
 
       const existingStart = new Date(shift.startDateTime);
       const existingEnd = new Date(shift.endDateTime);
@@ -107,7 +134,7 @@ export default function AddShiftScreen() {
       shift: overlapping,
       workplaceName: overlappingWorkplace?.name ?? "Another workplace",
     };
-  }, [startDate, endDate, workplaceId, shifts, workplaces]);
+  }, [startDate, endDate, workplaceId, shifts, workplaces, existingShift]);
 
   const validate = () => {
     const nextErrors: Record<string, string> = {};
@@ -126,6 +153,24 @@ export default function AddShiftScreen() {
 
   const handleSave = () => {
     if (!validate() || !startDate || !endDate) return;
+
+    if (existingShift) {
+      updateShift(existingShift.id, {
+        workplaceId,
+        title: title.trim(),
+        startDateTime: startDate.toISOString(),
+        endDateTime: endDate.toISOString(),
+        notes: notes.trim() || undefined,
+        status,
+      });
+
+      Alert.alert(
+        "Shift updated",
+        `"${title.trim()}" has been updated successfully.`,
+        [{ text: "OK", onPress: () => router.back() }],
+      );
+      return;
+    }
 
     const now = new Date().toISOString();
 
@@ -186,12 +231,15 @@ export default function AddShiftScreen() {
 
             <View style={styles.headerCopy}>
               <AppText variant="label" color={colors.accent}>
-                SHIFT ENTRY
+                {existingShift ? "EDIT ENTRY" : "SHIFT ENTRY"}
               </AppText>
-              <AppText variant="title">Add Shift</AppText>
+              <AppText variant="title">
+                {existingShift ? "Edit Shift" : "Add Shift"}
+              </AppText>
               <AppText variant="caption" color={colors.textSecondary}>
-                Define your next professional engagement with clean scheduling
-                details.
+                {existingShift
+                  ? "Update the details for this shift."
+                  : "Define your next professional engagement with clean scheduling details."}
               </AppText>
             </View>
           </View>
@@ -532,7 +580,7 @@ export default function AddShiftScreen() {
 
           <View style={styles.actionWrap}>
             <AppButton
-              label="Save Shift Entry"
+              label={existingShift ? "Save Changes" : "Save Shift Entry"}
               fullWidth
               size="lg"
               pill
