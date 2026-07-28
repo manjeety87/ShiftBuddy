@@ -81,7 +81,6 @@ export default function TabLayout() {
             <BlurView
               intensity={30}
               tint={theme.tokens.blurTint}
-              experimentalBlurMethod="dimezisBlurView"
               style={{
                 flex: 1,
                 backgroundColor: `${colors.surface}CC`,
