@@ -6,7 +6,6 @@
  */
 
 import type { Shift, ShiftConflict } from "@/types";
-import * as Crypto from "expo-crypto";
 
 /**
  * Returns how many minutes two shifts overlap (0 if they don't).
@@ -25,6 +24,16 @@ export function overlapMinutes(a: Shift, b: Shift): number {
 }
 
 /**
+ * Deterministic id for a shift pair — stable across every recompute so
+ * resolved state can be matched up and carried forward (see
+ * mergeConflicts in store/shift-store.ts). A random id here would mean
+ * "resolved" gets silently forgotten the next time any shift changes.
+ */
+function conflictId(shiftAId: string, shiftBId: string): string {
+  return [shiftAId, shiftBId].sort().join("::");
+}
+
+/**
  * Given a list of shifts, returns all conflicting pairs.
  * Only considers non-cancelled shifts.
  */
@@ -37,7 +46,7 @@ export function detectConflicts(shifts: Shift[]): ShiftConflict[] {
       const minutes = overlapMinutes(active[i], active[j]);
       if (minutes > 0) {
         conflicts.push({
-          id: Crypto.randomUUID(),
+          id: conflictId(active[i].id, active[j].id),
           shiftAId: active[i].id,
           shiftBId: active[j].id,
           overlapMinutes: minutes,
