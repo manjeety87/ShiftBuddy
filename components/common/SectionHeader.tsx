@@ -1,5 +1,5 @@
-import { StyleProp, ViewStyle, TextStyle, ReactNode } from "react-native";
-import React from "react";
+import { StyleProp, ViewStyle, TextStyle } from "react-native";
+import React, { type ReactNode } from "react";
 import { View, Text, StyleSheet, Pressable } from "react-native";
 import { IconSymbol } from "../ui/icon-symbol";
 import { useAppTheme } from "@/hooks/use-app-theme";
