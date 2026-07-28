@@ -114,29 +114,95 @@ export default function CustomThemeScreen() {
     saveCustomTheme(previewTheme, true);
   }, [previewTheme, saveCustomTheme]);
 
-  // Update a single token
+  // Update a single (legacy-named) token, cascading the same value into
+  // every *modern* semantic field the actual app screens read from — the
+  // legacy names (accent/card/muted/...) are compat aliases only, so
+  // writing just those made the editor visually do nothing.
   const updateToken = useCallback((key: EditableKey, value: string) => {
     setTokens((prev) => {
       const next = { ...prev, [key]: value };
-      // Auto-derive gradientStart from accent
-      if (key === "accent") {
-        next.gradientStart = value;
+
+      switch (key) {
+        case "accent":
+          next.primary = value;
+          next.primaryPressed = value;
+          next.primaryGradientStart = value;
+          next.primaryGradientEnd = value;
+          next.gradientStart = value;
+          next.gradientEnd = value;
+          next.primarySoft = value + "1C";
+          next.highlight = value + "18";
+          break;
+        case "background":
+          next.background = value;
+          next.backgroundSecondary = value;
+          next.backgroundGradientStart = value;
+          next.backgroundGradientEnd = value;
+          break;
+        case "surface":
+          next.surface = value;
+          next.surfaceElevated = value;
+          next.surfaceMuted = value;
+          next.surfaceSelected = value;
+          next.glassBackground = value + "B3";
+          next.glassBackgroundStrong = value + "E6";
+          break;
+        case "card":
+          next.card = value;
+          next.surfaceElevated = value;
+          break;
+        case "textPrimary":
+          next.textPrimary = value;
+          break;
+        case "textSecondary":
+          next.textSecondary = value;
+          next.textTertiary = value;
+          next.muted = value;
+          break;
+        case "success":
+          next.success = value;
+          next.successSoft = value + "22";
+          break;
+        case "warning":
+          next.warning = value;
+          next.warningSoft = value + "22";
+          break;
+        case "error":
+          next.error = value;
+          next.errorSoft = value + "22";
+          break;
+        case "border":
+          next.border = value;
+          next.borderStrong = value;
+          next.outline = value;
+          next.outline_variant = value;
+          next.glassBorder = value;
+          break;
       }
-      // Auto-derive blurTint from background brightness
+
+      // Auto-derive text/border/tint from background brightness
       if (key === "background") {
         const r = parseInt(value.slice(1, 3), 16);
         const g = parseInt(value.slice(3, 5), 16);
         const b = parseInt(value.slice(5, 7), 16);
         const lum = (r * 299 + g * 587 + b * 114) / 1000;
-        next.blurTint = lum > 128 ? "light" : "dark";
-        next.textPrimary = lum > 128 ? "#1A1D21" : "#F1F3F5";
-        next.textSecondary = lum > 128 ? "#6B7280" : "#9BA1AE";
-        next.border = lum > 128 ? "#E5E7EB" : "#2A2F3E";
-        next.shadow = lum > 128 ? "#00000014" : "#00000040";
-        next.overlay = lum > 128 ? "#00000033" : "#00000066";
-        next.muted = lum > 128 ? "#9CA3AF" : "#4B5563";
+        const isLight = lum > 128;
+
+        next.mode = isLight ? "light" : "dark";
+        next.blurTint = isLight ? "light" : "dark";
+        next.glassTint = isLight ? "light" : "dark";
+        next.textPrimary = isLight ? "#1A1D21" : "#F1F3F5";
+        next.textSecondary = isLight ? "#6B7280" : "#9BA1AE";
+        next.textTertiary = isLight ? "#9CA3AF" : "#7A8091";
+        next.border = isLight ? "#E5E7EB" : "#2A2F3E";
+        next.borderStrong = isLight ? "#CBD2D9" : "#3D4354";
+        next.glassBorder = next.border;
+        next.shadow = isLight ? "#00000014" : "#00000040";
+        next.overlay = isLight ? "#00000033" : "#00000066";
+        next.muted = next.textSecondary;
         next.highlight = next.accent + "18";
       }
+
       return next;
     });
     setHexInput(value);
@@ -510,11 +576,8 @@ export default function CustomThemeScreen() {
                   key={preset.label}
                   onPress={() => {
                     updateToken("background", preset.bg);
-                    setTokens((prev) => ({
-                      ...prev,
-                      surface: preset.surface,
-                      card: preset.card,
-                    }));
+                    updateToken("surface", preset.surface);
+                    updateToken("card", preset.card);
                   }}
                   style={[
                     styles.bgPresetRow,

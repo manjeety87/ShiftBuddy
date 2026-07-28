@@ -1,11 +1,11 @@
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    TextInput,
-    View,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  View,
 } from "react-native";
 
 import { AppBadge } from "@/components/ui/app-badge";
@@ -15,7 +15,8 @@ import { AppScreen } from "@/components/ui/app-screen";
 import { AppText } from "@/components/ui/app-text";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useAppTheme } from "@/hooks/use-app-theme";
-import { useShiftStore, useThemeStore } from "@/store";
+import { useConfigStore, useShiftStore, useThemeStore } from "@/store";
+import { FONT_SCALE_PRESETS } from "@/store/config-store";
 import { allThemes } from "@/theme";
 
 export default function SettingsScreen() {
@@ -24,6 +25,9 @@ export default function SettingsScreen() {
   const currentThemeId = useThemeStore((s) => s.themeId);
   const setTheme = useThemeStore((s) => s.setTheme);
   const currentTheme = allThemes.find((t) => t.id === currentThemeId);
+
+  const fontScale = useConfigStore((s) => s.fontScale);
+  const setFontScale = useConfigStore((s) => s.setFontScale);
 
   // Shift store (user profile)
   const storeUser = useShiftStore((s) => s.user);
@@ -171,7 +175,8 @@ export default function SettingsScreen() {
           Quick switch
         </AppText>
         <View style={styles.themeRow}>
-          {allThemes.slice(0, 6).map((t) => {
+          {allThemes.map((t) => {
+            // {allThemes.slice(0, 6).map((t) => {
             const isActive = t.id === currentThemeId;
             return (
               <Pressable
@@ -245,6 +250,54 @@ export default function SettingsScreen() {
             color={colors.textSecondary}
           />
         </Pressable>
+
+        {/* ── Font Size ── */}
+        <AppText variant="heading" style={styles.sectionTitle}>
+          Font Size
+        </AppText>
+        <AppCard style={styles.card}>
+          <AppText
+            variant="caption"
+            color={colors.textSecondary}
+            style={styles.configHint}
+          >
+            Controls text size across the whole app.
+          </AppText>
+          <View style={styles.fontScaleRow}>
+            {FONT_SCALE_PRESETS.map((preset) => {
+              const isActive = preset.value === fontScale;
+              return (
+                <Pressable
+                  key={preset.label}
+                  onPress={() => setFontScale(preset.value)}
+                  style={({ pressed }) => [
+                    styles.fontScaleOption,
+                    {
+                      backgroundColor: isActive
+                        ? colors.accent + "1A"
+                        : "transparent",
+                      borderColor: isActive ? colors.accent : colors.border,
+                      opacity: pressed ? 0.75 : 1,
+                    },
+                  ]}
+                >
+                  <AppText
+                    style={{ fontSize: 14 * preset.value }}
+                    color={isActive ? colors.accent : colors.textPrimary}
+                  >
+                    Aa
+                  </AppText>
+                  <AppText
+                    variant="caption"
+                    color={isActive ? colors.accent : colors.textSecondary}
+                  >
+                    {preset.label}
+                  </AppText>
+                </Pressable>
+              );
+            })}
+          </View>
+        </AppCard>
 
         {/* ── Quick Links ── */}
         <AppText variant="heading" style={styles.sectionTitle}>
@@ -405,6 +458,18 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   saveBtn: { flexShrink: 0 },
+  fontScaleRow: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  fontScaleOption: {
+    flex: 1,
+    alignItems: "center",
+    gap: 4,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
   statusDot: {
     flexDirection: "row",
     alignItems: "center",
