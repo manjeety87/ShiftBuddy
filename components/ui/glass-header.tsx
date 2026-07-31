@@ -32,7 +32,7 @@ export function GlassHeader({
     borderBottomColor: colors.border,
   };
 
-  if (isGlass && Platform.OS === "ios") {
+  if (isGlass && Platform.OS !== "web") {
     return (
       <View style={[styles.wrapper, style]}>
         <BlurView

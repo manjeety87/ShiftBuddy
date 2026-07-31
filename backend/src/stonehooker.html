@@ -1,0 +1,813 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stonehooker Brewing Co. — Lakeshore Road, Mississauga</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,500;9..144,600;9..144,700;9..144,900&family=Public+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --hull:#0C1E2C;
+    --hull-2:#132C3F;
+    --hull-3:#1B3A50;
+    --brass:#C89B3C;
+    --brass-light:#E6C877;
+    --patina:#4C7A6D;
+    --patina-light:#6E9C8E;
+    --parchment:#F1E8D6;
+    --parchment-2:#E8DCC3;
+    --ink:#15222D;
+    --ink-soft:#3D4C58;
+    --rust:#B8512F;
+    --line:rgba(200,155,60,0.28);
+    --shadow: 0 20px 50px rgba(6,16,24,0.35);
+  }
+
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{
+    margin:0;
+    background:var(--parchment);
+    color:var(--ink);
+    font-family:'Public Sans', sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  img{max-width:100%;display:block;}
+  a{color:inherit;text-decoration:none;}
+  .mono{font-family:'JetBrains Mono', monospace; letter-spacing:0.06em;}
+  .display{font-family:'Fraunces', serif;}
+
+  ::selection{background:var(--brass); color:var(--hull);}
+
+  /* ---------- focus visibility ---------- */
+  a:focus-visible, button:focus-visible{
+    outline:2px solid var(--brass);
+    outline-offset:3px;
+    border-radius:2px;
+  }
+
+  /* ================= NAV ================= */
+  header.nav{
+    position:sticky; top:0; z-index:100;
+    background:rgba(12,30,44,0.92);
+    backdrop-filter:blur(10px);
+    border-bottom:1px solid var(--line);
+  }
+  .nav-inner{
+    max-width:1280px; margin:0 auto;
+    display:flex; align-items:center; justify-content:space-between;
+    padding:14px 28px;
+  }
+  .brand{
+    display:flex; align-items:center; gap:10px;
+    color:var(--parchment);
+    font-family:'Fraunces', serif;
+    font-weight:600;
+    font-size:1.15rem;
+    letter-spacing:0.02em;
+  }
+  .brand svg{width:28px;height:28px;flex-shrink:0;}
+  .brand .sub{
+    display:block; font-family:'JetBrains Mono',monospace; font-weight:400;
+    font-size:0.58rem; letter-spacing:0.18em; color:var(--brass-light); opacity:0.85;
+    text-transform:uppercase; margin-top:1px;
+  }
+  nav.links{display:flex; gap:28px; align-items:center;}
+  nav.links a{
+    color:#CBD8DE; font-size:0.86rem; font-weight:500;
+    position:relative; padding:4px 0;
+  }
+  nav.links a::after{
+    content:""; position:absolute; left:0; bottom:-2px; height:1px; width:0;
+    background:var(--brass); transition:width .25s ease;
+  }
+  nav.links a:hover::after{width:100%;}
+  nav.links a:hover{color:var(--parchment);}
+  .nav-cta{
+    background:var(--brass); color:var(--hull) !important;
+    padding:9px 18px; border-radius:3px; font-weight:700; font-size:0.82rem;
+    letter-spacing:0.02em;
+    box-shadow:0 4px 14px rgba(200,155,60,0.25);
+    transition:transform .18s ease, box-shadow .18s ease;
+  }
+  .nav-cta:hover{transform:translateY(-1px); box-shadow:0 6px 18px rgba(200,155,60,0.38);}
+  .menu-toggle{display:none;}
+
+  @media (max-width:880px){
+    nav.links{
+      position:fixed; inset:64px 0 0 0; background:var(--hull);
+      flex-direction:column; padding:32px 28px; gap:22px;
+      transform:translateY(-8px); opacity:0; pointer-events:none;
+      transition:opacity .2s ease, transform .2s ease;
+    }
+    nav.links.open{opacity:1; transform:translateY(0); pointer-events:auto;}
+    nav.links a{font-size:1.1rem;}
+    .menu-toggle{
+      display:flex; align-items:center; justify-content:center;
+      width:38px; height:38px; background:none; border:1px solid var(--line);
+      border-radius:4px; cursor:pointer; color:var(--parchment);
+    }
+  }
+
+  /* ================= HERO ================= */
+  .hero{
+    position:relative;
+    background:radial-gradient(ellipse at 20% -10%, #1c3a4f 0%, var(--hull) 55%), var(--hull);
+    overflow:hidden;
+    padding:0 28px;
+    min-height:92vh;
+    display:flex; align-items:center;
+  }
+  .caustic{
+    position:absolute; inset:0; opacity:0.5; pointer-events:none;
+    background:
+      radial-gradient(circle at 15% 20%, rgba(76,122,109,0.20), transparent 40%),
+      radial-gradient(circle at 85% 15%, rgba(200,155,60,0.10), transparent 45%),
+      radial-gradient(circle at 60% 80%, rgba(76,122,109,0.14), transparent 45%);
+    animation: drift 22s ease-in-out infinite alternate;
+  }
+  @keyframes drift{
+    0%{ transform:translate(0,0) scale(1);}
+    100%{ transform:translate(2%, -3%) scale(1.06);}
+  }
+  .hero-inner{
+    position:relative; z-index:2;
+    max-width:1280px; margin:0 auto;
+    display:grid; grid-template-columns:1.15fr 0.85fr; gap:40px;
+    align-items:center;
+    padding:80px 0 60px;
+    width:100%;
+  }
+  .eyebrow{
+    display:inline-flex; align-items:center; gap:10px;
+    font-family:'JetBrains Mono',monospace; font-size:0.72rem; letter-spacing:0.2em;
+    color:var(--brass-light); text-transform:uppercase; margin-bottom:22px;
+  }
+  .eyebrow::before{content:""; width:26px; height:1px; background:var(--brass-light); display:inline-block;}
+  h1.hero-title{
+    font-family:'Fraunces', serif;
+    font-weight:600;
+    font-size:clamp(2.6rem, 5.2vw, 4.4rem);
+    line-height:1.02;
+    color:var(--parchment);
+    margin:0 0 22px;
+    letter-spacing:-0.01em;
+  }
+  h1.hero-title em{
+    font-style:italic; font-weight:400; color:var(--brass-light);
+  }
+  .hero-sub{
+    font-size:1.08rem; line-height:1.65; color:#B9C8D0; max-width:520px; margin:0 0 34px;
+  }
+  .hero-ctas{display:flex; flex-wrap:wrap; gap:14px; margin-bottom:36px;}
+  .btn{
+    display:inline-flex; align-items:center; gap:9px;
+    padding:15px 24px; border-radius:3px; font-weight:700; font-size:0.92rem;
+    border:1px solid transparent; cursor:pointer; transition:all .2s ease;
+  }
+  .btn-primary{background:var(--brass); color:var(--hull);}
+  .btn-primary:hover{background:var(--brass-light); transform:translateY(-2px); box-shadow:0 10px 24px rgba(200,155,60,0.3);}
+  .btn-outline{background:transparent; color:var(--parchment); border-color:rgba(241,232,214,0.35);}
+  .btn-outline:hover{border-color:var(--parchment); background:rgba(241,232,214,0.06);}
+  .btn svg{width:16px;height:16px;}
+
+  .hero-meta{
+    display:flex; gap:26px; flex-wrap:wrap;
+    padding-top:22px; border-top:1px solid var(--line);
+    max-width:560px;
+  }
+  .hero-meta div{font-size:0.82rem; color:#9FB2BB;}
+  .hero-meta strong{display:block; color:var(--parchment); font-size:0.92rem; font-family:'Fraunces',serif; font-weight:600; margin-bottom:2px;}
+
+  /* Anchor illustration */
+  .hero-art{
+    position:relative; display:flex; align-items:center; justify-content:center;
+    height:520px;
+  }
+  .anchor-wrap{
+    position:relative; width:260px; height:460px;
+  }
+  .chain-line{
+    stroke:var(--brass-light); stroke-width:2; fill:none; opacity:0.85;
+    stroke-dasharray:900; stroke-dashoffset:900;
+    animation: payout 1.4s cubic-bezier(.2,.7,.3,1) 0.15s forwards;
+  }
+  .anchor-body{
+    transform-origin: 130px 40px;
+    opacity:0;
+    animation: drop 1.5s cubic-bezier(.25,.75,.35,1) 0.35s forwards;
+  }
+  @keyframes payout{ to{ stroke-dashoffset:0; } }
+  @keyframes drop{
+    0%{ transform:translateY(-70px) rotate(-8deg); opacity:0; }
+    60%{ opacity:1; }
+    100%{ transform:translateY(0) rotate(0deg); opacity:1; }
+  }
+  .ring{
+    transform-origin:130px 34px;
+    opacity:0;
+    animation: fadein .5s ease 0.15s forwards;
+  }
+  @keyframes fadein{ to{opacity:1;} }
+  .ripple{
+    position:absolute; left:50%; bottom:6px; width:180px; height:34px;
+    transform:translateX(-50%);
+    border:1px solid var(--patina-light); border-radius:50%;
+    opacity:0; animation: ripple 1.8s ease 1.4s infinite;
+  }
+  @keyframes ripple{
+    0%{ opacity:0.55; transform:translateX(-50%) scale(0.6); }
+    100%{ opacity:0; transform:translateX(-50%) scale(1.7); }
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    .caustic{animation:none;}
+    .chain-line{stroke-dashoffset:0; animation:none;}
+    .anchor-body,.ring{opacity:1; animation:none; transform:none;}
+    .ripple{display:none;}
+  }
+
+  @media (max-width:980px){
+    .hero-inner{grid-template-columns:1fr; padding-top:52px;}
+    .hero-art{height:300px; order:-1;}
+    .anchor-wrap{width:160px; height:280px;}
+    .hero-meta{max-width:100%;}
+  }
+
+  /* ================= STATUS STRIP ================= */
+  .status-strip{
+    background:var(--hull-2);
+    border-bottom:1px solid var(--line);
+  }
+  .status-inner{
+    max-width:1280px; margin:0 auto; padding:16px 28px;
+    display:flex; align-items:center; justify-content:space-between;
+    flex-wrap:wrap; gap:12px;
+  }
+  .status-left{display:flex; align-items:center; gap:14px; flex-wrap:wrap;}
+  .pulse-dot{
+    width:9px; height:9px; border-radius:50%; background:#7FC29B; position:relative; flex-shrink:0;
+  }
+  .pulse-dot::after{
+    content:""; position:absolute; inset:-5px; border-radius:50%; border:1px solid #7FC29B;
+    animation:pulse 2s ease-out infinite;
+  }
+  @keyframes pulse{ 0%{transform:scale(0.6); opacity:0.9;} 100%{transform:scale(1.8); opacity:0;} }
+  .status-text{color:var(--parchment); font-size:0.88rem; font-weight:600;}
+  .status-sep{color:#5A7182; font-size:0.82rem;}
+  .status-today{color:#B9C8D0; font-size:0.85rem;}
+  .status-today strong{color:var(--brass-light); font-weight:600;}
+  .status-right a{
+    font-family:'JetBrains Mono',monospace; font-size:0.78rem; color:var(--brass-light);
+    letter-spacing:0.04em; border-bottom:1px solid transparent;
+  }
+  .status-right a:hover{border-color:var(--brass-light);}
+
+  @media (max-width:700px){
+    .status-inner{flex-direction:column; align-items:flex-start;}
+  }
+
+  /* ================= SECTION SCAFFOLD ================= */
+  section{padding:96px 28px;}
+  .section-inner{max-width:1280px; margin:0 auto;}
+  .section-head{max-width:640px; margin-bottom:56px;}
+  .section-tag{
+    font-family:'JetBrains Mono',monospace; font-size:0.72rem; letter-spacing:0.2em;
+    text-transform:uppercase; color:var(--rust); font-weight:500; margin-bottom:14px; display:block;
+  }
+  h2.section-title{
+    font-family:'Fraunces',serif; font-weight:600; font-size:clamp(1.9rem,3.4vw,2.7rem);
+    color:var(--ink); margin:0 0 16px; letter-spacing:-0.01em;
+  }
+  .section-desc{color:var(--ink-soft); font-size:1.02rem; line-height:1.6; margin:0;}
+
+  /* ---- rope divider (used sparingly, twice total) ---- */
+  .rope-divider{
+    max-width:1280px; margin:0 auto; padding:0 28px;
+  }
+  .rope-divider svg{width:100%; height:22px; display:block;}
+
+  /* ================= THREE PILLARS ================= */
+  .pillars{background:var(--parchment);}
+  .pillar-grid{
+    display:grid; grid-template-columns:repeat(3,1fr); gap:24px;
+  }
+  .pillar-card{
+    background:#FBF6EA; border:1px solid var(--parchment-2);
+    border-radius:8px; padding:36px 30px; position:relative;
+    transition:transform .25s ease, box-shadow .25s ease;
+  }
+  .pillar-card:hover{transform:translateY(-6px); box-shadow:var(--shadow);}
+  .pillar-num{
+    font-family:'JetBrains Mono',monospace; font-size:0.72rem; color:var(--brass);
+    letter-spacing:0.12em; margin-bottom:18px; display:block;
+  }
+  .pillar-icon{
+    width:46px; height:46px; margin-bottom:20px;
+    display:flex; align-items:center; justify-content:center;
+    background:var(--hull); border-radius:50%;
+  }
+  .pillar-icon svg{width:22px; height:22px; stroke:var(--brass-light);}
+  .pillar-card h3{
+    font-family:'Fraunces',serif; font-size:1.4rem; font-weight:600; margin:0 0 10px; color:var(--ink);
+  }
+  .pillar-card p{color:var(--ink-soft); font-size:0.94rem; line-height:1.55; margin:0 0 20px;}
+  .pillar-link{
+    font-size:0.85rem; font-weight:700; color:var(--rust);
+    display:inline-flex; align-items:center; gap:6px;
+  }
+  .pillar-link svg{width:14px; height:14px; transition:transform .2s ease;}
+  .pillar-card:hover .pillar-link svg{transform:translateX(3px);}
+
+  @media (max-width:900px){ .pillar-grid{grid-template-columns:1fr;} }
+
+  /* ================= MANIFEST (beer) ================= */
+  .manifest{background:var(--hull); color:var(--parchment); position:relative; overflow:hidden;}
+  .manifest .section-tag{color:var(--brass-light);}
+  .manifest h2.section-title{color:var(--parchment);}
+  .manifest .section-desc{color:#A9BAC2;}
+  .manifest-scroll{
+    display:grid; grid-auto-flow:column; grid-auto-columns:240px;
+    gap:20px; overflow-x:auto; padding-bottom:14px; margin-top:8px;
+    scrollbar-width:thin; scrollbar-color:var(--brass) var(--hull-2);
+  }
+  .manifest-scroll::-webkit-scrollbar{height:6px;}
+  .manifest-scroll::-webkit-scrollbar-thumb{background:var(--brass); border-radius:6px;}
+  .manifest-scroll::-webkit-scrollbar-track{background:var(--hull-2);}
+  .can-card{
+    background:var(--hull-2); border:1px solid rgba(200,155,60,0.18);
+    border-radius:8px; padding:22px 20px; flex-shrink:0;
+  }
+  .can-swatch{
+    width:100%; height:120px; border-radius:6px; margin-bottom:18px;
+    display:flex; align-items:center; justify-content:center;
+    position:relative; overflow:hidden;
+  }
+  .can-swatch svg{width:46px; height:46px; opacity:0.9;}
+  .can-card h4{font-family:'Fraunces',serif; font-size:1.08rem; font-weight:600; margin:0 0 6px;}
+  .can-tags{display:flex; gap:8px; margin-bottom:12px;}
+  .tag{
+    font-family:'JetBrains Mono',monospace; font-size:0.66rem; letter-spacing:0.05em;
+    padding:3px 8px; border:1px solid rgba(230,200,119,0.4); border-radius:3px; color:var(--brass-light);
+  }
+  .can-card p{font-size:0.83rem; color:#9FB2BB; line-height:1.5; margin:0;}
+  .manifest-footer{
+    display:flex; justify-content:space-between; align-items:center; margin-top:36px; flex-wrap:wrap; gap:16px;
+  }
+  .manifest-footer p{font-size:0.86rem; color:#8FA2AB; max-width:420px; margin:0;}
+
+  /* ================= GALLEY SPOTLIGHT ================= */
+  .galley{background:var(--parchment-2);}
+  .galley-grid{
+    display:grid; grid-template-columns:0.95fr 1.05fr; gap:56px; align-items:center;
+  }
+  .galley-photo{
+    position:relative; border-radius:10px; overflow:hidden; aspect-ratio:4/5;
+    background:linear-gradient(155deg,#2b4a3f,#0C1E2C 70%);
+    display:flex; align-items:center; justify-content:center;
+    box-shadow:var(--shadow);
+  }
+  .galley-photo svg{width:44%; opacity:0.92;}
+  .galley-photo .stamp{
+    position:absolute; bottom:22px; left:22px; background:rgba(12,30,44,0.85);
+    border:1px solid var(--brass); color:var(--brass-light);
+    font-family:'JetBrains Mono',monospace; font-size:0.7rem; letter-spacing:0.1em;
+    padding:8px 14px; border-radius:3px;
+  }
+  .galley-copy .section-tag{color:var(--rust);}
+  .menu-list{list-style:none; margin:28px 0; padding:0;}
+  .menu-list li{
+    display:flex; justify-content:space-between; gap:16px;
+    padding:14px 0; border-bottom:1px solid rgba(21,34,45,0.1);
+    font-size:0.96rem;
+  }
+  .menu-list li:first-child{padding-top:0;}
+  .menu-list .item-name{font-weight:600; color:var(--ink);}
+  .menu-list .item-desc{display:block; font-size:0.82rem; color:var(--ink-soft); font-weight:400; margin-top:3px;}
+  .menu-list .item-price{font-family:'JetBrains Mono',monospace; color:var(--rust); white-space:nowrap; font-weight:500;}
+
+  @media (max-width:900px){ .galley-grid{grid-template-columns:1fr;} .galley-photo{aspect-ratio:16/10;} }
+
+  /* ================= EVENTS ================= */
+  .events{background:var(--parchment);}
+  .events-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:22px;}
+  .event-card{
+    border:1px solid var(--parchment-2); border-radius:8px; overflow:hidden; background:#FBF6EA;
+    transition:transform .25s ease, box-shadow .25s ease;
+  }
+  .event-card:hover{transform:translateY(-5px); box-shadow:var(--shadow);}
+  .event-top{
+    background:var(--hull); padding:26px 22px 18px; position:relative;
+  }
+  .event-date{
+    font-family:'JetBrains Mono',monospace; font-size:0.7rem; letter-spacing:0.12em;
+    color:var(--brass-light); text-transform:uppercase; margin-bottom:10px; display:block;
+  }
+  .event-top h4{font-family:'Fraunces',serif; color:var(--parchment); font-size:1.2rem; margin:0; font-weight:600;}
+  .event-body{padding:18px 22px 24px;}
+  .event-body p{font-size:0.87rem; color:var(--ink-soft); margin:0 0 16px; line-height:1.5;}
+  .event-link{font-size:0.83rem; font-weight:700; color:var(--rust); display:inline-flex; gap:6px; align-items:center;}
+  .event-link svg{width:13px; height:13px;}
+
+  .events-cta{text-align:center; margin-top:44px;}
+
+  @media (max-width:900px){ .events-grid{grid-template-columns:1fr;} }
+
+  /* ================= VISIT / FOOTER ================= */
+  footer{background:var(--hull); color:var(--parchment); padding-top:90px;}
+  .visit-inner{
+    max-width:1280px; margin:0 auto; padding:0 28px 70px;
+    display:grid; grid-template-columns:1fr 1fr 1fr; gap:40px;
+  }
+  .visit-col h4{
+    font-family:'JetBrains Mono',monospace; font-size:0.72rem; letter-spacing:0.15em;
+    text-transform:uppercase; color:var(--brass-light); margin:0 0 20px;
+  }
+  .hours-row{display:flex; justify-content:space-between; padding:7px 0; font-size:0.88rem; color:#C3D0D6; border-bottom:1px dashed rgba(241,232,214,0.12);}
+  .hours-row.today{color:var(--parchment); font-weight:600;}
+  .visit-col .addr{font-size:0.98rem; line-height:1.6; color:var(--parchment); margin:0 0 18px;}
+  .visit-col .addr strong{display:block; font-family:'Fraunces',serif; font-size:1.15rem; font-weight:600; margin-bottom:6px;}
+  .link-list{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:11px;}
+  .link-list a{font-size:0.9rem; color:#C3D0D6;}
+  .link-list a:hover{color:var(--brass-light);}
+  .newsletter{
+    display:flex; margin-top:20px; border:1px solid rgba(241,232,214,0.2); border-radius:4px; overflow:hidden;
+  }
+  .newsletter input{
+    flex:1; background:transparent; border:none; padding:12px 14px; color:var(--parchment); font-size:0.85rem; font-family:'Public Sans',sans-serif;
+  }
+  .newsletter input::placeholder{color:#7E93A0;}
+  .newsletter input:focus{outline:none;}
+  .newsletter button{
+    background:var(--brass); border:none; padding:0 18px; color:var(--hull); font-weight:700; cursor:pointer; font-size:0.85rem;
+  }
+  .footer-bottom{
+    border-top:1px solid rgba(241,232,214,0.1);
+    padding:22px 28px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;
+    max-width:1280px; margin:0 auto;
+  }
+  .footer-bottom p{font-size:0.78rem; color:#7E93A0; margin:0;}
+  .socials{display:flex; gap:14px;}
+  .socials a{
+    width:32px; height:32px; border:1px solid rgba(241,232,214,0.2); border-radius:50%;
+    display:flex; align-items:center; justify-content:center; transition:border-color .2s ease, background .2s ease;
+  }
+  .socials a:hover{border-color:var(--brass); background:rgba(200,155,60,0.1);}
+  .socials svg{width:14px; height:14px; stroke:var(--parchment);}
+
+  @media (max-width:900px){ .visit-inner{grid-template-columns:1fr; gap:44px;} }
+
+  /* scroll reveal */
+  .reveal{opacity:0; transform:translateY(22px); transition:opacity .7s ease, transform .7s ease;}
+  .reveal.in{opacity:1; transform:translateY(0);}
+</style>
+</head>
+<body>
+
+<header class="nav">
+  <div class="nav-inner">
+    <a class="brand" href="#top">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="5" r="2"/><path d="M12 7v13M8 12H4a8 8 0 0 0 8 8 8 8 0 0 0 8-8h-4"/></svg>
+      <span>Stonehooker<span class="sub">Brewing Co. · Est. Lakeshore Rd.</span></span>
+    </a>
+    <nav class="links" id="navLinks">
+      <a href="#pillars">Drink · Eat · Gather</a>
+      <a href="#galley">The Galley</a>
+      <a href="#events">Events</a>
+      <a href="#visit">Visit Us</a>
+    </nav>
+    <div style="display:flex; align-items:center; gap:14px;">
+      <a class="nav-cta" href="#order">Order</a>
+      <button class="menu-toggle" id="menuToggle" aria-label="Toggle menu" aria-expanded="false">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+      </button>
+    </div>
+  </div>
+</header>
+
+<main id="top">
+
+  <!-- HERO -->
+  <section class="hero" style="padding-top:0;">
+    <div class="caustic" aria-hidden="true"></div>
+    <div class="hero-inner">
+      <div>
+        <span class="eyebrow mono">866 Lakeshore Road East · Port Credit Waterfront</span>
+        <h1 class="hero-title">Beer, hauled up<br>from the <em>lake trade</em>.</h1>
+        <p class="hero-sub">Stonehooker takes its name from the old lakebed schooners that worked this shoreline for stone. We still work the same waterfront — now for pints, plates, and long nights in the biergarten.</p>
+        <div class="hero-ctas">
+          <a href="#order-food" class="btn btn-primary">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18M3 3l7 4-7 4M14 3v18M21 3v18"/></svg>
+            Order Food
+          </a>
+          <a href="#order-beer" class="btn btn-outline">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h9l1 5-1 13H7L6 8z"/><path d="M6 8h10"/></svg>
+            Order Beer
+          </a>
+          <a href="#visit" class="btn btn-outline">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
+            Book a Table
+          </a>
+        </div>
+        <div class="hero-meta">
+          <div><strong>Open till 11pm tonight</strong>Taproom &amp; Lower Deck</div>
+          <div><strong>Chef Hansel's Galley</strong>Wed–Sun, designer pizza &amp; more</div>
+          <div><strong>(289) 847-5000</strong>Call for groups &amp; curbside</div>
+        </div>
+      </div>
+
+      <div class="hero-art" aria-hidden="true">
+        <div class="anchor-wrap">
+          <svg viewBox="0 0 260 460" width="100%" height="100%">
+            <g class="chain-line">
+              <circle cx="130" cy="30" r="9" stroke="var(--brass-light)" stroke-width="3" fill="none"/>
+              <circle cx="130" cy="48" r="9" stroke="var(--brass-light)" stroke-width="3" fill="none" transform="rotate(90 130 48)"/>
+              <circle cx="130" cy="66" r="9" stroke="var(--brass-light)" stroke-width="3" fill="none"/>
+              <circle cx="130" cy="84" r="9" stroke="var(--brass-light)" stroke-width="3" fill="none" transform="rotate(90 130 84)"/>
+              <circle cx="130" cy="102" r="9" stroke="var(--brass-light)" stroke-width="3" fill="none"/>
+            </g>
+            <g class="anchor-body">
+              <circle class="ring" cx="130" cy="34" r="16" stroke="var(--brass-light)" stroke-width="5" fill="none"/>
+              <path d="M130 116 V300" stroke="var(--brass-light)" stroke-width="8" fill="none" stroke-linecap="round"/>
+              <path d="M100 150 H160" stroke="var(--brass-light)" stroke-width="8" stroke-linecap="round"/>
+              <path d="M60 260 C60 330 100 380 130 388 C160 380 200 330 200 260" stroke="var(--brass-light)" stroke-width="8" fill="none" stroke-linecap="round"/>
+              <path d="M55 250 L60 268 L75 258 Z" fill="var(--brass-light)"/>
+              <path d="M205 250 L200 268 L185 258 Z" fill="var(--brass-light)"/>
+            </g>
+          </svg>
+          <div class="ripple"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- STATUS STRIP -->
+  <div class="status-strip">
+    <div class="status-inner">
+      <div class="status-left">
+        <span class="pulse-dot"></span>
+        <span class="status-text">Open Now</span>
+        <span class="status-sep">·</span>
+        <span class="status-today">Today's hours: <strong>11am – 11pm</strong></span>
+        <span class="status-sep">·</span>
+        <span class="status-today">Live tonight: <strong>Open Mic &amp; Jam Session</strong></span>
+      </div>
+      <div class="status-right">
+        <a href="tel:2898475000">(289) 847-5000 →</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- THREE PILLARS -->
+  <section class="pillars" id="pillars">
+    <div class="section-inner">
+      <div class="section-head reveal">
+        <span class="section-tag">What we do here</span>
+        <h2 class="section-title">Three reasons people find this dock.</h2>
+        <p class="section-desc">Everything at Stonehooker sorts into one of three holds. Pick the one you came for.</p>
+      </div>
+      <div class="pillar-grid">
+        <div class="pillar-card reveal">
+          <span class="pillar-num mono">HOLD 01</span>
+          <div class="pillar-icon"><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h9l1 5-1 13H7L6 8z"/><path d="M6 8h10"/></svg></div>
+          <h3>Drink</h3>
+          <p>Small-batch lagers, NEIPAs, and stouts brewed on site — never watered down, never rushed.</p>
+          <a class="pillar-link" href="#order-beer">See what's on tap <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+        </div>
+        <div class="pillar-card reveal">
+          <span class="pillar-num mono">HOLD 02</span>
+          <div class="pillar-icon"><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18M3 3l7 4-7 4M14 3v18M21 3v18"/></svg></div>
+          <h3>Eat</h3>
+          <p>Chef Hansel runs The Galley — designer pizza from scratch, burgers, ribs, and weekly shareables.</p>
+          <a class="pillar-link" href="#galley">Walk through the menu <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+        </div>
+        <div class="pillar-card reveal">
+          <span class="pillar-num mono">HOLD 03</span>
+          <div class="pillar-icon"><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3"/><path d="M2 20c0-3.5 3-6 7-6s7 2.5 7 6"/><circle cx="18" cy="9" r="2.4"/><path d="M15.5 14c2.7.3 5 2.3 5 6"/></svg></div>
+          <h3>Gather</h3>
+          <p>Live music, euchre nights, and private parties in the Lower Deck — birthdays to stag &amp; does.</p>
+          <a class="pillar-link" href="#events">Check what's on <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="rope-divider" aria-hidden="true">
+    <svg viewBox="0 0 1280 22" preserveAspectRatio="none">
+      <path d="M0 11 Q 20 0, 40 11 T 80 11 T 120 11 T 160 11 T 200 11 T 240 11 T 280 11 T 320 11 T 360 11 T 400 11 T 440 11 T 480 11 T 520 11 T 560 11 T 600 11 T 640 11 T 680 11 T 720 11 T 760 11 T 800 11 T 840 11 T 880 11 T 920 11 T 960 11 T 1000 11 T 1040 11 T 1080 11 T 1120 11 T 1160 11 T 1200 11 T 1240 11 T 1280 11" stroke="#C89B3C" stroke-width="2" fill="none" opacity="0.35"/>
+    </svg>
+  </div>
+
+  <!-- MANIFEST / BEER -->
+  <section class="manifest" id="order-beer">
+    <div class="section-inner">
+      <div class="section-head reveal">
+        <span class="section-tag">The manifest</span>
+        <h2 class="section-title">What's in the hold this week.</h2>
+        <p class="section-desc">Five house beers, brewed small-batch with malts and hops sourced from Canada and around the globe.</p>
+      </div>
+
+      <div class="manifest-scroll reveal">
+        <div class="can-card">
+          <div class="can-swatch" style="background:linear-gradient(160deg,#3E6259,#1B3A50);">
+            <svg viewBox="0 0 24 24" fill="none" stroke="var(--brass-light)" stroke-width="1.6"><path d="M6 3h9l1 5-1 13H7L6 8z"/><path d="M6 8h10"/></svg>
+          </div>
+          <h4>Lakeshore Lager</h4>
+          <div class="can-tags"><span class="tag">4.8% ABV</span><span class="tag">18 IBU</span></div>
+          <p>Crisp, clean, built for the biergarten on a long Saturday.</p>
+        </div>
+        <div class="can-card">
+          <div class="can-swatch" style="background:linear-gradient(160deg,#4C7A6D,#0C1E2C);">
+            <svg viewBox="0 0 24 24" fill="none" stroke="var(--brass-light)" stroke-width="1.6"><path d="M6 3h9l1 5-1 13H7L6 8z"/><path d="M6 8h10"/></svg>
+          </div>
+          <h4>Broad Reach NEIPA</h4>
+          <div class="can-tags"><span class="tag">5.4% ABV</span><span class="tag">Hazy</span></div>
+          <p>Juicy, tropical, named for the fastest point of sail.</p>
+        </div>
+        <div class="can-card">
+          <div class="can-swatch" style="background:linear-gradient(160deg,#8a4a2e,#1B3A50);">
+            <svg viewBox="0 0 24 24" fill="none" stroke="var(--brass-light)" stroke-width="1.6"><path d="M6 3h9l1 5-1 13H7L6 8z"/><path d="M6 8h10"/></svg>
+          </div>
+          <h4>Arriba! Mexican Hot Cocoa Stout</h4>
+          <div class="can-tags"><span class="tag">6.1% ABV</span><span class="tag">Spiced</span></div>
+          <p>Dark cocoa and a chili kick — a seasonal that keeps coming back by demand.</p>
+        </div>
+        <div class="can-card">
+          <div class="can-swatch" style="background:linear-gradient(160deg,#C89B3C,#4C7A6D);">
+            <svg viewBox="0 0 24 24" fill="none" stroke="var(--hull)" stroke-width="1.6"><path d="M6 3h9l1 5-1 13H7L6 8z"/><path d="M6 8h10"/></svg>
+          </div>
+          <h4>Weiss Guy Hefeweizen</h4>
+          <div class="can-tags"><span class="tag">5.1% ABV</span><span class="tag">Wheat</span></div>
+          <p>Banana and clove notes, unfiltered — a warm-weather regular.</p>
+        </div>
+        <div class="can-card">
+          <div class="can-swatch" style="background:linear-gradient(160deg,#1B3A50,#0C1E2C);">
+            <svg viewBox="0 0 24 24" fill="none" stroke="var(--brass-light)" stroke-width="1.6"><path d="M6 3h9l1 5-1 13H7L6 8z"/><path d="M6 8h10"/></svg>
+          </div>
+          <h4>Gibraltar Point Imperial Stout</h4>
+          <div class="can-tags"><span class="tag">8.9% ABV</span><span class="tag">Barrel</span></div>
+          <p>Heavy, dark, built for the last round of a winter night.</p>
+        </div>
+      </div>
+
+      <div class="manifest-footer">
+        <p>Grab N Go from 11am to close, curbside pickup any time — call ahead or order through the beer store.</p>
+        <a class="btn btn-primary" href="https://www.stonehooker.ca" id="order">Shop the Full Lineup</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- GALLEY -->
+  <section class="galley" id="galley">
+    <div class="section-inner galley-grid">
+      <div class="galley-photo reveal">
+        <svg viewBox="0 0 24 24" fill="none" stroke="var(--brass-light)" stroke-width="1.2"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18 9 9 0 0 0 0-18z"/><path d="M3 12h18M12 3c2.5 2.5 2.5 15.5 0 18M12 3c-2.5 2.5-2.5 15.5 0 18"/></svg>
+        <div class="stamp mono">GALLEY · OPEN WED–SUN</div>
+      </div>
+      <div class="galley-copy reveal" id="order-food">
+        <span class="section-tag">From the galley</span>
+        <h2 class="section-title">Designer pizza, done from scratch.</h2>
+        <p class="section-desc">Chef Hansel's kitchen runs comfort food with a made-in-house standard: dough proofed daily, sauces built from base, nothing frozen and reheated.</p>
+        <ul class="menu-list">
+          <li>
+            <span><span class="item-name">The Deckhand</span><span class="item-desc">Smoked pork, pickled onion, house BBQ</span></span>
+            <span class="item-price">$19</span>
+          </li>
+          <li>
+            <span><span class="item-name">Lakeshore Margherita</span><span class="item-desc">San Marzano, fior di latte, basil oil</span></span>
+            <span class="item-price">$17</span>
+          </li>
+          <li>
+            <span><span class="item-name">Stonehooker Burger</span><span class="item-desc">Double smash, brewhouse aioli, fries</span></span>
+            <span class="item-price">$18</span>
+          </li>
+          <li>
+            <span><span class="item-name">Full Rack Ribs</span><span class="item-desc">Dry rub, slow smoked, Broad Reach glaze</span></span>
+            <span class="item-price">$26</span>
+          </li>
+        </ul>
+        <a href="#" class="btn btn-primary">Order from The Galley</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- EVENTS -->
+  <section class="events" id="events">
+    <div class="section-inner">
+      <div class="section-head reveal">
+        <span class="section-tag">On the calendar</span>
+        <h2 class="section-title">This week at Stonehooker.</h2>
+        <p class="section-desc">Three coming up — the full calendar has the rest of the summer series.</p>
+      </div>
+      <div class="events-grid">
+        <div class="event-card reveal">
+          <div class="event-top">
+            <span class="event-date mono">FRI · JUL 17</span>
+            <h4>Bad Moon Revival</h4>
+          </div>
+          <div class="event-body">
+            <p>A tribute to CCR, live on the Lower Deck stage — doors at 7, no cover.</p>
+            <a class="event-link" href="#">Reserve a table <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+          </div>
+        </div>
+        <div class="event-card reveal">
+          <div class="event-top">
+            <span class="event-date mono">TUE · JUL 22</span>
+            <h4>Babes &amp; Brews</h4>
+          </div>
+          <div class="event-body">
+            <p>Speed dating in the biergarten, 7pm — bring a pint, leave with a plan.</p>
+            <a class="event-link" href="#">Get tickets <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+          </div>
+        </div>
+        <div class="event-card reveal">
+          <div class="event-top">
+            <span class="event-date mono">THU · JUL 24</span>
+            <h4>Open Mic &amp; Jam</h4>
+          </div>
+          <div class="event-body">
+            <p>Bring an instrument or just an audience — house amps ready from 8pm.</p>
+            <a class="event-link" href="#">See details <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+          </div>
+        </div>
+      </div>
+      <div class="events-cta reveal">
+        <a href="#" class="btn btn-outline" style="color:var(--ink); border-color:rgba(21,34,45,0.25);">View Full Calendar</a>
+      </div>
+    </div>
+  </section>
+
+  <div class="rope-divider" aria-hidden="true" style="background:var(--hull);">
+    <svg viewBox="0 0 1280 22" preserveAspectRatio="none">
+      <path d="M0 11 Q 20 22, 40 11 T 80 11 T 120 11 T 160 11 T 200 11 T 240 11 T 280 11 T 320 11 T 360 11 T 400 11 T 440 11 T 480 11 T 520 11 T 560 11 T 600 11 T 640 11 T 680 11 T 720 11 T 760 11 T 800 11 T 840 11 T 880 11 T 920 11 T 960 11 T 1000 11 T 1040 11 T 1080 11 T 1120 11 T 1160 11 T 1200 11 T 1240 11 T 1280 11" stroke="#C89B3C" stroke-width="2" fill="none" opacity="0.3"/>
+    </svg>
+  </div>
+
+</main>
+
+<!-- FOOTER / VISIT -->
+<footer id="visit">
+  <div class="visit-inner">
+    <div class="visit-col">
+      <h4>Find the Dock</h4>
+      <p class="addr">
+        <strong>Stonehooker Brewing Co.</strong>
+        866 Lakeshore Road East<br>
+        Mississauga, Ontario L5E 1E1
+      </p>
+      <ul class="link-list">
+        <li><a href="tel:2898475000">(289) 847-5000</a></li>
+        <li><a href="mailto:ahoy@stonehooker.com">ahoy@stonehooker.com</a></li>
+        <li><a href="#">Get Directions →</a></li>
+      </ul>
+    </div>
+    <div class="visit-col">
+      <h4>Taproom Hours</h4>
+      <div class="hours-row"><span>Monday – Tuesday</span><span>11am – 9pm</span></div>
+      <div class="hours-row today"><span>Wednesday</span><span>11am – 11pm</span></div>
+      <div class="hours-row"><span>Thursday – Saturday</span><span>11am – 12am</span></div>
+      <div class="hours-row"><span>Sunday</span><span>11am – 9pm</span></div>
+    </div>
+    <div class="visit-col">
+      <h4>Join the Crew's Log</h4>
+      <p style="font-size:0.88rem; color:#A9BAC2; line-height:1.55; margin:0;">One email a week — new seasonals, event dates, and first call on private bookings.</p>
+      <form class="newsletter" onsubmit="event.preventDefault();">
+        <input type="email" placeholder="you@email.com" aria-label="Email address" required>
+        <button type="submit">Subscribe</button>
+      </form>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <p>© 2026 Stonehooker Brewing Co. · Mississauga, Ontario</p>
+    <div class="socials">
+      <a href="#" aria-label="Instagram"><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1"/></svg></a>
+      <a href="#" aria-label="Facebook"><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round"><path d="M14 9h3V6h-3c-2 0-3 1.2-3 3v3H8v3h3v6h3v-6h3l1-3h-4v-2c0-.7.3-1 1-1z"/></svg></a>
+    </div>
+  </div>
+</footer>
+
+<script>
+  // mobile menu
+  const toggle = document.getElementById('menuToggle');
+  const navLinks = document.getElementById('navLinks');
+  toggle.addEventListener('click', () => {
+    const open = navLinks.classList.toggle('open');
+    toggle.setAttribute('aria-expanded', open);
+  });
+  navLinks.querySelectorAll('a').forEach(a => a.addEventListener('click', () => {
+    navLinks.classList.remove('open');
+    toggle.setAttribute('aria-expanded', false);
+  }));
+
+  // scroll reveal
+  const revealEls = document.querySelectorAll('.reveal');
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } });
+  }, { threshold: 0.15 });
+  revealEls.forEach(el => io.observe(el));
+</script>
+
+</body>
+</html>

@@ -76,7 +76,7 @@ export function AppButton({
   const variantConfig = {
     primary: {
       bg: colors.accent,
-      fg: tokens.surface_darkest,
+      fg: tokens.textOnPrimary,
       border: "transparent",
       usesGradient: true,
     },
@@ -100,7 +100,7 @@ export function AppButton({
     },
     danger: {
       bg: colors.error,
-      fg: tokens.surface_bright,
+      fg: tokens.textOnDanger,
       border: "transparent",
       usesGradient: false,
     },
@@ -144,6 +144,7 @@ export function AppButton({
           },
           fullWidth && { width: "100%" },
           pressed && { opacity: 0.85 },
+          style as ViewStyle,
         ]}
         disabled={disabled}
         {...rest}
@@ -162,7 +163,7 @@ export function AppButton({
         >
           <AppText
             variant={textVariant[size]}
-            color={tokens.surface_darkest}
+            color={tokens.textOnPrimary}
             style={styles.buttonText}
           >
             {label}
@@ -193,7 +194,6 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   buttonText: {
-    flex: 1,
     textAlign: "center",
   },
 });

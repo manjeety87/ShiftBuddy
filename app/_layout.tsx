@@ -1,113 +1,3 @@
-// import {
-//   DarkTheme,
-//   DefaultTheme,
-//   ThemeProvider,
-// } from "@react-navigation/native";
-// import { router, Stack } from "expo-router";
-// import { StatusBar } from "expo-status-bar";
-// import { Platform } from "react-native";
-// import "react-native-reanimated";
-
-// import { useShiftStore, useThemeStore } from "@/store";
-// import { useEffect, useState } from "react";
-// import SplashScreen from "./SplashScreen";
-
-// export const unstable_settings = {
-//   anchor: "(tabs)",
-// };
-
-// export default function RootLayout() {
-//   // ── Hydrate stores on first mount ──────────────────────────────
-//   const hydrateShifts = useShiftStore((s) => s.hydrate);
-//   const shiftsHydrated = useShiftStore((s) => s.hydrated);
-//   const storeUser = useShiftStore((s) => s.user);
-//   const [splashComplete, setSplashComplete] = useState(false);
-
-//   useEffect(() => {
-//     hydrateShifts();
-//   }, [hydrateShifts]);
-
-//   // ── Get theme early (before any conditional returns) ────────────
-//   const blurTint = useThemeStore((s) => s.theme.tokens.blurTint);
-//   const tokens = useThemeStore((s) => s.theme.tokens);
-
-//   // ── Splash screen gate: Show for minimum duration ────────────────
-//   useEffect(() => {
-//     if (!shiftsHydrated) return;
-
-//     // Show splash for at least 1.2 seconds for visual effect
-//     const splashTimer = setTimeout(() => {
-//       setSplashComplete(true);
-//     }, 1200);
-
-//     return () => clearTimeout(splashTimer);
-//   }, [shiftsHydrated]);
-
-//   // ── Onboarding gate ────────────────────────────────────────────
-//   // After splash and hydration, redirect to profile-setup if user hasn't set their name
-//   useEffect(() => {
-//     if (!splashComplete) return;
-//     if (!storeUser || !storeUser.name.trim()) {
-//       router.replace("/profile-setup");
-//     }
-//   }, [splashComplete, storeUser]);
-
-//   // ── Show splash screen during initial load ─────────────────────
-//   if (!splashComplete) {
-//     return <SplashScreen />;
-//   }
-//   const navTheme = {
-//     ...(blurTint === "dark" ? DarkTheme : DefaultTheme),
-//     colors: {
-//       ...(blurTint === "dark" ? DarkTheme : DefaultTheme).colors,
-//       background: tokens.background || "#10131a",
-//       card: tokens.surface || "#10131a",
-//       text: tokens.textPrimary || "#e1e2eb",
-//       primary: tokens.accent || "#adc6ff",
-//     },
-//   };
-
-//   // Smooth modal transition config
-//   const modalOptions = {
-//     headerShown: false,
-//     presentation: "modal" as const,
-//     animation:
-//       Platform.OS === "ios"
-//         ? ("slide_from_bottom" as const)
-//         : ("fade_from_bottom" as const),
-//     animationDuration: 280,
-//     gestureEnabled: true,
-//     gestureDirection: "vertical" as const,
-//   };
-
-//   return (
-//     <ThemeProvider value={navTheme}>
-//       <Stack
-//         screenOptions={{
-//           headerShown: false,
-//           contentStyle: { backgroundColor: tokens.background },
-//           animation: "fade" as const,
-//           animationDuration: 200,
-//         }}
-//       >
-//         <Stack.Screen name="(tabs)" />
-//         <Stack.Screen name="profile-setup" options={{ headerShown: false }} />
-//         <Stack.Screen name="add-shift" options={modalOptions} />
-//         <Stack.Screen name="add-workplace" options={modalOptions} />
-//         <Stack.Screen name="upload-shift" options={modalOptions} />
-//         <Stack.Screen name="custom-theme" options={modalOptions} />
-//         <Stack.Screen name="conflicts" options={modalOptions} />
-//         <Stack.Screen name="theme-selector" options={modalOptions} />
-//         {/* <Stack.Screen
-//           name="modal"
-//           options={{ ...modalOptions, title: "Modal" }}
-//         /> */}
-//       </Stack>
-//       <StatusBar style={blurTint === "dark" ? "light" : "dark"} />
-//     </ThemeProvider>
-//   );
-// }
-
 import {
   DarkTheme,
   DefaultTheme,
@@ -137,7 +27,7 @@ import { Platform } from "react-native";
 
 import "react-native-reanimated";
 
-import { useShiftStore, useThemeStore } from "@/store";
+import { useConfigStore, useShiftStore, useThemeStore } from "@/store";
 
 import SplashScreen from "./SplashScreen";
 
@@ -155,6 +45,10 @@ export default function RootLayout() {
   const hydrateTheme = useThemeStore((state) => state.hydrate);
 
   const tokens = useThemeStore((state) => state.theme.tokens);
+
+  const hydrateConfig = useConfigStore((state) => state.hydrate);
+
+  const configHydrated = useConfigStore((state) => state.hydrated);
 
   const [fontsLoaded] = useFonts({
     Inter_400Regular,
@@ -180,7 +74,11 @@ export default function RootLayout() {
   }, [hydrateTheme]);
 
   useEffect(() => {
-    if (!shiftsHydrated || !fontsLoaded) {
+    void hydrateConfig();
+  }, [hydrateConfig]);
+
+  useEffect(() => {
+    if (!shiftsHydrated || !fontsLoaded || !configHydrated) {
       return;
     }
 
@@ -191,7 +89,7 @@ export default function RootLayout() {
     return () => {
       clearTimeout(splashTimer);
     };
-  }, [shiftsHydrated, fontsLoaded]);
+  }, [shiftsHydrated, fontsLoaded, configHydrated]);
 
   useEffect(() => {
     if (!splashComplete) {

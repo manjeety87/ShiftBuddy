@@ -459,7 +459,10 @@ export default function CalendarScreen() {
             ) : (
               <View style={styles.timeline}>
                 <View
-                  style={[styles.timelineLine, { backgroundColor: tokens.divider }]}
+                  style={[
+                    styles.timelineLine,
+                    { backgroundColor: tokens.divider },
+                  ]}
                 />
 
                 {selectedDayShifts.map((shift) => {
@@ -694,7 +697,13 @@ const styles = StyleSheet.create({
   dayCircle: {
     width: 38,
     height: 38,
+    // Exact half-width, not 999: on this device, an oversized borderRadius
+    // isn't clamped down to the box size the way it is on iOS/web — it
+    // inflates the shape instead of clipping to a circle. overflow:
+    // "hidden" (below) is what actually fixes the earlier square-fill
+    // bug; the radius just needs to match the known, fixed 38x38 box.
     borderRadius: 19,
+    overflow: "hidden",
     alignItems: "center",
     justifyContent: "center",
   },

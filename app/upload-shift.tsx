@@ -1,454 +1,71 @@
 import * as ImagePicker from "expo-image-picker";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
-    Alert,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    useWindowDimensions,
-    View,
+  ActivityIndicator,
+  Alert,
+  Image,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  View,
 } from "react-native";
 
+import { WorkplaceChoiceCard } from "@/components/shifts/WorkplaceChoiceCard";
+import { AppButton } from "@/components/ui/app-button";
+import { AppCard } from "@/components/ui/app-card";
 import { AppScreen } from "@/components/ui/app-screen";
 import { AppText } from "@/components/ui/app-text";
+import { GlassCard } from "@/components/ui/glass-card";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useAppTheme } from "@/hooks/use-app-theme";
-import { ocrService } from "@/services";
-import type { ThemeTokens } from "@/theme";
+import { ocrService, type OCRParseResult } from "@/services/ocr";
+import { useShiftStore } from "@/store";
 
-const alphaColor = (hex: string, alpha: number) => {
-  const normalized = hex.replace("#", "");
-  const value =
-    normalized.length === 3
-      ? normalized
-          .split("")
-          .map((character) => character + character)
-          .join("")
-      : normalized;
+type Phase = "idle" | "processing" | "review" | "error";
 
-  const red = Number.parseInt(value.slice(0, 2), 16);
-  const green = Number.parseInt(value.slice(2, 4), 16);
-  const blue = Number.parseInt(value.slice(4, 6), 16);
-
-  return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
+const fmtShiftLine = (
+  shift: OCRParseResult["shifts"][number],
+): { date: string; time: string } => {
+  const start = new Date(shift.startDateTime);
+  const end = new Date(shift.endDateTime);
+  return {
+    date: start.toLocaleDateString(undefined, {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+    }),
+    time: `${start.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} – ${end.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`,
+  };
 };
-
-type UploadPalette = {
-  background: string;
-  surface: string;
-  text: string;
-  textSecondary: string;
-  textTertiary: string;
-  primary: string;
-  primaryLight: string;
-  primaryOn: string;
-  primarySoft: string;
-  secondaryContainer: string;
-  secondaryOnContainer: string;
-  border: string;
-  borderSoft: string;
-  glassBackground: string;
-  glassBorder: string;
-  overlay: string;
-};
-
-const buildUploadPalette = (tokens: ThemeTokens): UploadPalette => ({
-  background: tokens.background,
-  surface: tokens.surface,
-  text: tokens.textPrimary,
-  textSecondary: tokens.textSecondary,
-  textTertiary: tokens.textTertiary,
-  primary: tokens.primary,
-  primaryLight: tokens.primaryGradientEnd,
-  primaryOn: tokens.textOnPrimary,
-  primarySoft: tokens.primarySoft,
-  secondaryContainer: alphaColor(tokens.primary, 0.08),
-  secondaryOnContainer: tokens.textSecondary,
-  border: tokens.border,
-  borderSoft: tokens.divider,
-  glassBackground: tokens.glassBackground,
-  glassBorder: tokens.glassBorder,
-  overlay: tokens.background,
-});
-
-const buildStyles = (tokens: ThemeTokens, palette: UploadPalette) =>
-  StyleSheet.create({
-    screen: {
-      flex: 1,
-      backgroundColor: palette.background,
-    },
-    header: {
-      position: "absolute",
-      top: 0,
-      left: 0,
-      right: 0,
-      zIndex: 50,
-      backgroundColor: alphaColor(palette.surface, 0.8),
-    },
-    headerInner: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
-      paddingHorizontal: 24,
-      paddingVertical: 16,
-      width: "100%",
-      maxWidth: 1120,
-      alignSelf: "center",
-    },
-    brandRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 12,
-    },
-    avatar: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      alignItems: "center",
-      justifyContent: "center",
-      backgroundColor: palette.primary,
-    },
-    title: {
-      color: palette.primary,
-      fontFamily: "Manrope",
-      fontSize: 20,
-      lineHeight: 24,
-      fontWeight: "800",
-      letterSpacing: -0.4,
-    },
-    headerAction: {
-      padding: 8,
-      borderRadius: 999,
-    },
-    main: {
-      flex: 1,
-      width: "100%",
-      maxWidth: 512,
-      alignSelf: "center",
-      paddingHorizontal: 24,
-      paddingTop: 96,
-      paddingBottom: 128,
-      minHeight: "100%",
-    },
-    uploadSection: {
-      width: "100%",
-      alignItems: "center",
-      gap: 40,
-    },
-    hero: {
-      width: "100%",
-      alignItems: "center",
-    },
-    heading: {
-      color: palette.text,
-      fontFamily: "Manrope",
-      fontSize: 32,
-      lineHeight: 38,
-      fontWeight: "800",
-      letterSpacing: -0.8,
-      textAlign: "center",
-      marginBottom: 8,
-    },
-    subheading: {
-      color: palette.textSecondary,
-      fontFamily: "Inter",
-      fontSize: 16,
-      lineHeight: 24,
-      fontWeight: "500",
-      textAlign: "center",
-    },
-    uploadCard: {
-      width: "100%",
-      aspectRatio: 0.8,
-      borderRadius: 32,
-      padding: 32,
-      overflow: "hidden",
-      borderWidth: 1,
-      borderColor: palette.glassBorder,
-      backgroundColor: palette.glassBackground,
-      justifyContent: "center",
-      shadowColor: tokens.shadow,
-      shadowOpacity: 0.16,
-      shadowRadius: 24,
-      shadowOffset: { width: 0, height: 10 },
-      elevation: 8,
-    },
-    orbTopRight: {
-      position: "absolute",
-      top: -48,
-      right: -48,
-      width: 128,
-      height: 128,
-      borderRadius: 999,
-      backgroundColor: alphaColor(palette.primary, 0.05),
-    },
-    orbBottomLeft: {
-      position: "absolute",
-      bottom: -48,
-      left: -48,
-      width: 128,
-      height: 128,
-      borderRadius: 999,
-      backgroundColor: alphaColor(tokens.primary, 0.1),
-    },
-    uploadInner: {
-      width: "100%",
-      alignItems: "center",
-      gap: 32,
-    },
-    uploadIntro: {
-      alignItems: "center",
-      gap: 16,
-    },
-    uploadIcon: {
-      width: 80,
-      height: 80,
-      borderRadius: 24,
-      backgroundColor: alphaColor(palette.primary, 0.1),
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    cardTitle: {
-      color: palette.text,
-      fontFamily: "Manrope",
-      fontSize: 22,
-      lineHeight: 28,
-      fontWeight: "700",
-      textAlign: "center",
-      letterSpacing: -0.2,
-    },
-    cardSubTitle: {
-      color: alphaColor(palette.textSecondary, 0.7),
-      fontFamily: "Inter",
-      fontSize: 14,
-      lineHeight: 20,
-      fontWeight: "500",
-      textAlign: "center",
-    },
-    uploadGrid: {
-      width: "100%",
-      flexDirection: "row",
-      gap: 16,
-    },
-    pickerButton: {
-      flex: 1,
-      minHeight: 96,
-      borderRadius: 24,
-      paddingVertical: 24,
-      paddingHorizontal: 18,
-      alignItems: "center",
-      justifyContent: "center",
-      gap: 12,
-      backgroundColor: alphaColor(palette.surface, 0.6),
-      borderWidth: 1,
-      borderColor: alphaColor(tokens.border, 0.15),
-      shadowColor: tokens.shadow,
-      shadowOpacity: 0.05,
-      shadowRadius: 12,
-      shadowOffset: { width: 0, height: 6 },
-      elevation: 1,
-    },
-    pickerButtonPressed: {
-      transform: [{ scale: 0.95 }],
-      backgroundColor: palette.surface,
-    },
-    pickerLabel: {
-      color: palette.text,
-      fontFamily: "Inter",
-      fontSize: 10,
-      lineHeight: 12,
-      fontWeight: "700",
-      letterSpacing: 1.8,
-      textTransform: "uppercase",
-    },
-    cta: {
-      width: "100%",
-      borderRadius: 999,
-      overflow: "hidden",
-      shadowColor: tokens.primary,
-      shadowOpacity: 0.2,
-      shadowRadius: 22,
-      shadowOffset: { width: 0, height: 12 },
-      elevation: 4,
-    },
-    ctaGradient: {
-      minHeight: 64,
-      paddingHorizontal: 24,
-      borderRadius: 999,
-      alignItems: "center",
-      justifyContent: "center",
-      flexDirection: "row",
-      gap: 12,
-    },
-    ctaPressed: {
-      transform: [{ scale: 0.98 }],
-    },
-    ctaText: {
-      color: palette.primaryOn,
-      fontFamily: "Manrope",
-      fontSize: 18,
-      lineHeight: 24,
-      fontWeight: "700",
-    },
-    processingOverlay: {
-      position: "absolute",
-      inset: 0,
-      zIndex: 60,
-      backgroundColor: palette.surface,
-      alignItems: "center",
-      justifyContent: "center",
-      paddingHorizontal: 24,
-    },
-    processingOrbWrap: {
-      width: 256,
-      height: 256,
-      alignItems: "center",
-      justifyContent: "center",
-      marginBottom: 48,
-    },
-    processingOrbOuter: {
-      position: "absolute",
-      width: 192,
-      height: 192,
-      borderRadius: 96,
-      backgroundColor: tokens.primarySoft,
-      shadowColor: tokens.primary,
-      shadowOpacity: 0.4,
-      shadowRadius: 40,
-      shadowOffset: { width: 0, height: 0 },
-      elevation: 12,
-    },
-    processingOrbInner: {
-      position: "absolute",
-      width: 160,
-      height: 160,
-      borderRadius: 80,
-      backgroundColor: alphaColor(tokens.primary, 0.2),
-      borderWidth: 1,
-      borderColor: alphaColor(tokens.surface, 0.3),
-    },
-    processingRing: {
-      position: "absolute",
-      inset: 0,
-      borderWidth: 2,
-      borderColor: alphaColor(tokens.primary, 0.2),
-      borderRadius: 128,
-    },
-    processingCopy: {
-      alignItems: "center",
-      gap: 12,
-      maxWidth: 280,
-      textAlign: "center",
-    },
-    processingTitle: {
-      color: palette.text,
-      fontFamily: "Manrope",
-      fontSize: 24,
-      lineHeight: 30,
-      fontWeight: "800",
-      textAlign: "center",
-      letterSpacing: -0.4,
-    },
-    processingText: {
-      color: palette.textSecondary,
-      fontFamily: "Inter",
-      fontSize: 16,
-      lineHeight: 24,
-      fontWeight: "500",
-      textAlign: "center",
-    },
-    successPill: {
-      marginTop: 48,
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 8,
-      paddingHorizontal: 16,
-      paddingVertical: 10,
-      borderRadius: 999,
-      backgroundColor: alphaColor(tokens.primary, 0.12),
-    },
-    bottomNav: {
-      position: "absolute",
-      left: 0,
-      right: 0,
-      bottom: 24,
-      zIndex: 55,
-      paddingHorizontal: 16,
-    },
-    bottomNavInner: {
-      width: "100%",
-      maxWidth: 448,
-      alignSelf: "center",
-      flexDirection: "row",
-      justifyContent: "space-around",
-      alignItems: "center",
-      paddingHorizontal: 16,
-      paddingVertical: 8,
-      borderRadius: 999,
-      backgroundColor: alphaColor(tokens.surfaceElevated, 0.6),
-      shadowColor: tokens.primary,
-      shadowOpacity: 0.08,
-      shadowRadius: 24,
-      shadowOffset: { width: 0, height: 12 },
-      elevation: 6,
-    },
-    navItem: {
-      alignItems: "center",
-      justifyContent: "center",
-      gap: 4,
-      minWidth: 54,
-    },
-    navLabel: {
-      color: alphaColor(palette.textSecondary, 0.7),
-      fontFamily: "Inter",
-      fontSize: 10,
-      lineHeight: 12,
-      fontWeight: "600",
-      letterSpacing: 1.6,
-      textTransform: "uppercase",
-      marginTop: 2,
-    },
-    navActive: {
-      width: 48,
-      height: 48,
-      borderRadius: 24,
-      backgroundColor: palette.primary,
-      alignItems: "center",
-      justifyContent: "center",
-      transform: [{ scale: 1.1 }],
-      shadowColor: tokens.shadow,
-      shadowOpacity: 0.2,
-      shadowRadius: 14,
-      shadowOffset: { width: 0, height: 8 },
-      elevation: 5,
-    },
-  });
 
 export default function UploadShiftScreen() {
-  const { width } = useWindowDimensions();
-  const { tokens } = useAppTheme();
-  const palette = useMemo(() => buildUploadPalette(tokens), [tokens]);
-  const styles = useMemo(() => buildStyles(tokens, palette), [tokens, palette]);
+  const { colors, tokens } = useAppTheme();
+
+  const user = useShiftStore((s) => s.user);
+  const workplaces = useShiftStore((s) => s.workplaces);
+  const addShift = useShiftStore((s) => s.addShift);
 
   const [imageUri, setImageUri] = useState<string | null>(null);
-  const [showProcessing, setShowProcessing] = useState(false);
-  const [processingText, setProcessingText] = useState(
-    "AI is extracting shifts from your schedule...",
+  const [phase, setPhase] = useState<Phase>("idle");
+  const [errorMessage, setErrorMessage] = useState("");
+  const [parseResult, setParseResult] = useState<OCRParseResult | null>(null);
+  const [includedIndexes, setIncludedIndexes] = useState<Set<number>>(
+    new Set(),
+  );
+  const [selectedWorkplaceId, setSelectedWorkplaceId] = useState<string>("");
+
+  const selectedWorkplace = useMemo(
+    () => workplaces.find((w) => w.id === selectedWorkplaceId),
+    [workplaces, selectedWorkplaceId],
   );
 
-  useEffect(() => {
-    if (!showProcessing) {
-      return;
-    }
-
-    const timeoutId = setTimeout(() => {
-      setProcessingText("Schedule successfully parsed!");
-    }, 5000);
-
-    return () => clearTimeout(timeoutId);
-  }, [showProcessing]);
+  const resetToIdle = () => {
+    setPhase("idle");
+    setErrorMessage("");
+    setParseResult(null);
+  };
 
   const handlePickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -491,267 +108,473 @@ export default function UploadShiftScreen() {
     }
   };
 
-  const handleScan = () => {
-    setShowProcessing(true);
-    setProcessingText("AI is extracting shifts from your schedule...");
+  const handleScan = async () => {
+    if (!imageUri) {
+      return;
+    }
 
-    if (imageUri) {
-      void ocrService
-        .parseScheduleImage(imageUri, "", {
-          scheduleMode: "auto",
-          workplaceName: "",
-          aliases: [],
-        })
-        .catch(() => {
-          // Visual parity takes priority here; errors stay quiet.
-        });
+    setPhase("processing");
+    setErrorMessage("");
+
+    try {
+      const result = await ocrService.parseScheduleImage(
+        imageUri,
+        user?.name ?? "",
+        { scheduleMode: "auto" },
+      );
+
+      if (!result.shifts.length) {
+        setErrorMessage(
+          result.isWorkSchedule
+            ? result.userNameFound
+              ? "The schedule was read, but no shift times could be matched. Try a clearer photo."
+              : `Couldn't find "${user?.name || "your name"}" on this schedule. Set your name in Settings so we can match your shifts, or add this shift manually.`
+            : "This doesn't look like a work schedule. Try a different photo.",
+        );
+        setPhase("error");
+        return;
+      }
+
+      setParseResult(result);
+      setIncludedIndexes(new Set(result.shifts.map((_, index) => index)));
+
+      const matchedWorkplace = result.detectedWorkplaceName
+        ? workplaces.find((w) =>
+            w.name
+              .toLowerCase()
+              .includes(result.detectedWorkplaceName!.toLowerCase()),
+          )
+        : undefined;
+
+      setSelectedWorkplaceId(matchedWorkplace?.id ?? workplaces[0]?.id ?? "");
+      setPhase("review");
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Something went wrong while scanning this image.",
+      );
+      setPhase("error");
     }
   };
 
-  const contentWidth = useMemo(() => Math.min(width - 48, 512), [width]);
+  const toggleIncluded = (index: number) => {
+    setIncludedIndexes((prev) => {
+      const next = new Set(prev);
+      if (next.has(index)) {
+        next.delete(index);
+      } else {
+        next.add(index);
+      }
+      return next;
+    });
+  };
 
-  if (showProcessing) {
-    return (
-      <AppScreen
-        safeBottom={false}
-        showLiquidBackground={false}
-        style={{ backgroundColor: palette.surface }}
-      >
-        <View style={styles.processingOverlay}>
-          <View style={styles.processingOrbWrap}>
-            <View style={styles.processingOrbOuter} />
-            <View style={styles.processingOrbInner} />
-            <View style={styles.processingRing} />
-          </View>
+  const handleImport = () => {
+    if (!parseResult || !selectedWorkplaceId) {
+      return;
+    }
 
-          <View style={styles.processingCopy}>
-            <AppText style={styles.processingTitle}>
-              Extraction in progress
-            </AppText>
-            <AppText style={styles.processingText}>{processingText}</AppText>
-          </View>
-
-          <View style={styles.successPill}>
-            <IconSymbol
-              name="checkmark.circle.fill"
-              size={14}
-              color={tokens.primary}
-            />
-            <AppText
-              style={{
-                color: tokens.primary,
-                fontFamily: "Inter",
-                fontSize: 10,
-                lineHeight: 12,
-                fontWeight: "700",
-                letterSpacing: 1.6,
-                textTransform: "uppercase",
-              }}
-            >
-              Analyzing 4 shifts found
-            </AppText>
-          </View>
-        </View>
-      </AppScreen>
+    const chosenShifts = parseResult.shifts.filter((_, index) =>
+      includedIndexes.has(index),
     );
-  }
+
+    const shiftsToAdd = ocrService.toShiftObjects(chosenShifts, {
+      workplaceId: selectedWorkplaceId,
+      associationType: "workplace",
+    });
+
+    shiftsToAdd.forEach((shift) => addShift(shift));
+
+    Alert.alert(
+      "Shifts imported",
+      `${shiftsToAdd.length} shift${shiftsToAdd.length === 1 ? "" : "s"} added to ${selectedWorkplace?.name ?? "your schedule"}.`,
+      [{ text: "OK", onPress: () => router.push("/(tabs)/shifts") }],
+    );
+  };
 
   return (
-    <AppScreen
-      safeBottom={false}
-      showLiquidBackground={false}
-      style={{ backgroundColor: palette.background }}
-    >
-      <View style={styles.screen}>
-        <View style={styles.header}>
-          <View style={styles.headerInner}>
-            <View style={styles.brandRow}>
-              <View style={styles.avatar}>
-                <IconSymbol
-                  name="person.fill"
-                  size={18}
-                  color={palette.primaryOn}
-                  fill={1}
-                />
-              </View>
-              <AppText style={styles.title}>ShiftBuddy</AppText>
-            </View>
+    <AppScreen>
+      <View style={styles.headerRow}>
+        <Pressable onPress={() => router.back()} hitSlop={12}>
+          <IconSymbol name="chevron.left" size={24} color={colors.accent} />
+        </Pressable>
+        <AppText variant="heading" style={styles.flex1} center>
+          Import Schedule
+        </AppText>
+        <View style={styles.headerSpacer} />
+      </View>
 
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => router.push("/(tabs)/settings")}
-              style={({ pressed }) => [
-                styles.headerAction,
-                pressed && { opacity: 0.8 },
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
+      >
+        {phase === "processing" ? (
+          <View style={styles.processingWrap}>
+            <ActivityIndicator size="large" color={colors.accent} />
+            <AppText variant="heading" center style={styles.processingTitle}>
+              Reading your schedule
+            </AppText>
+            <AppText variant="body" color={colors.textSecondary} center>
+              AI is extracting shift times from your photo…
+            </AppText>
+          </View>
+        ) : phase === "error" ? (
+          <View style={styles.processingWrap}>
+            <View
+              style={[
+                styles.errorIcon,
+                { backgroundColor: colors.error + "16" },
               ]}
             >
-              <IconSymbol name="bell.fill" size={24} color={palette.primary} />
-            </Pressable>
+              <IconSymbol
+                name="exclamationmark.triangle.fill"
+                size={28}
+                color={colors.error}
+              />
+            </View>
+            <AppText variant="heading" center>
+              Couldn&apos;t import this schedule
+            </AppText>
+            <AppText
+              variant="body"
+              color={colors.textSecondary}
+              center
+              style={styles.errorText}
+            >
+              {errorMessage}
+            </AppText>
+            <AppButton
+              label="Try Again"
+              onPress={resetToIdle}
+              style={styles.retryBtn}
+            />
           </View>
-        </View>
+        ) : phase === "review" && parseResult ? (
+          <>
+            {parseResult.matchedEmployeeName ? (
+              <AppCard style={styles.hintCard} padding={14}>
+                <View style={styles.hintRow}>
+                  <IconSymbol
+                    name="checkmark.circle.fill"
+                    size={18}
+                    color={colors.success}
+                  />
+                  <AppText variant="caption" color={colors.textSecondary}>
+                    Matched shifts for{" "}
+                    <AppText variant="captionBold">
+                      {parseResult.matchedEmployeeName}
+                    </AppText>
+                  </AppText>
+                </View>
+              </AppCard>
+            ) : null}
 
-        <ScrollView
-          contentContainerStyle={[styles.main, { maxWidth: contentWidth }]}
-          showsVerticalScrollIndicator={false}
-        >
-          <View style={styles.uploadSection}>
+            <AppText variant="overline" color={colors.textSecondary}>
+              Which workplace is this?
+            </AppText>
+
+            {workplaces.length === 0 ? (
+              <AppCard style={styles.emptyWorkplaceCard}>
+                <AppText variant="body" color={colors.textSecondary} center>
+                  Add a workplace first so imported shifts have somewhere to
+                  go.
+                </AppText>
+                <AppButton
+                  label="Add Workplace"
+                  onPress={() => router.push("/add-workplace")}
+                  style={styles.addWorkplaceBtn}
+                />
+              </AppCard>
+            ) : (
+              <View style={styles.workplaceGrid}>
+                {workplaces.map((workplace) => (
+                  <View key={workplace.id} style={styles.gridItem}>
+                    <WorkplaceChoiceCard
+                      label={workplace.name}
+                      color={workplace.color}
+                      selected={workplace.id === selectedWorkplaceId}
+                      onPress={() => setSelectedWorkplaceId(workplace.id)}
+                    />
+                  </View>
+                ))}
+              </View>
+            )}
+
+            <AppText
+              variant="overline"
+              color={colors.textSecondary}
+              style={styles.shiftsLabel}
+            >
+              {includedIndexes.size} of {parseResult.shifts.length} shifts
+              selected
+            </AppText>
+
+            {parseResult.shifts.map((shift, index) => {
+              const included = includedIndexes.has(index);
+              const { date, time } = fmtShiftLine(shift);
+
+              return (
+                <Pressable
+                  key={`${shift.startDateTime}-${index}`}
+                  onPress={() => toggleIncluded(index)}
+                  style={({ pressed }) => [{ opacity: pressed ? 0.85 : 1 }]}
+                >
+                  <AppCard
+                    style={styles.shiftRow}
+                    padding={14}
+                    accentBorder={
+                      included ? selectedWorkplace?.color ?? colors.accent : undefined
+                    }
+                  >
+                    <View style={styles.shiftRowInner}>
+                      <View
+                        style={[
+                          styles.checkbox,
+                          {
+                            borderColor: included
+                              ? colors.accent
+                              : colors.border,
+                            backgroundColor: included
+                              ? colors.accent
+                              : "transparent",
+                          },
+                        ]}
+                      >
+                        {included && (
+                          <IconSymbol name="checkmark" size={12} color="#fff" />
+                        )}
+                      </View>
+                      <View style={styles.flex1}>
+                        <AppText variant="bodyBold">{shift.title}</AppText>
+                        <AppText variant="caption" color={colors.textSecondary}>
+                          {date} · {time}
+                        </AppText>
+                      </View>
+                    </View>
+                  </AppCard>
+                </Pressable>
+              );
+            })}
+
+            <View style={styles.actions}>
+              <AppButton
+                label={`Import ${includedIndexes.size} Shift${includedIndexes.size === 1 ? "" : "s"}`}
+                onPress={handleImport}
+                disabled={includedIndexes.size === 0 || !selectedWorkplaceId}
+                fullWidth
+              />
+              <AppButton
+                label="Start Over"
+                variant="ghost"
+                onPress={resetToIdle}
+                fullWidth
+              />
+            </View>
+          </>
+        ) : (
+          <>
             <View style={styles.hero}>
-              <AppText style={styles.heading}>Import Your Schedule</AppText>
-              <AppText style={styles.subheading}>
-                Sync your roster in seconds using AI extraction.
+              <AppText variant="title" center>
+                Import Your Schedule
+              </AppText>
+              <AppText
+                variant="body"
+                color={colors.textSecondary}
+                center
+                style={styles.heroSubtitle}
+              >
+                Snap a photo of a paper schedule or a screenshot from another
+                app — AI finds your shifts automatically.
               </AppText>
             </View>
 
-            <View style={styles.uploadCard}>
-              <View style={styles.orbTopRight} />
-              <View style={styles.orbBottomLeft} />
-
-              <View style={styles.uploadInner}>
-                <View style={styles.uploadIntro}>
-                  <View style={styles.uploadIcon}>
-                    <IconSymbol
-                      name="cloud.upload.fill"
-                      size={42}
-                      color={palette.primary}
-                    />
-                  </View>
-
-                  <View>
-                    <AppText style={styles.cardTitle}>Drop file here</AppText>
-                    <AppText style={styles.cardSubTitle}>
-                      PNG, JPG, or PDF up to 10MB
-                    </AppText>
-                  </View>
+            <GlassCard style={styles.uploadCard} padding={24}>
+              {imageUri ? (
+                <Image source={{ uri: imageUri }} style={styles.preview} />
+              ) : (
+                <View
+                  style={[
+                    styles.uploadIcon,
+                    { backgroundColor: colors.accent + "14" },
+                  ]}
+                >
+                  <IconSymbol
+                    name="cloud.upload.fill"
+                    size={38}
+                    color={colors.accent}
+                  />
                 </View>
+              )}
 
-                <View style={styles.uploadGrid}>
-                  <Pressable
-                    accessibilityRole="button"
-                    onPress={handlePickImage}
-                    style={({ pressed }) => [
-                      styles.pickerButton,
-                      pressed && styles.pickerButtonPressed,
-                    ]}
-                  >
-                    <IconSymbol
-                      name="photo.on.rectangle"
-                      size={24}
-                      color={palette.primary}
-                    />
-                    <AppText style={styles.pickerLabel}>Gallery</AppText>
-                  </Pressable>
+              <AppText variant="bodyBold" center style={styles.uploadTitle}>
+                {imageUri ? "Photo ready" : "Choose a photo"}
+              </AppText>
 
-                  <Pressable
-                    accessibilityRole="button"
-                    onPress={handleTakePhoto}
-                    style={({ pressed }) => [
-                      styles.pickerButton,
-                      pressed && styles.pickerButtonPressed,
-                    ]}
-                  >
-                    <IconSymbol
-                      name="camera.fill"
-                      size={24}
-                      color={palette.primary}
-                    />
-                    <AppText style={styles.pickerLabel}>Camera</AppText>
-                  </Pressable>
-                </View>
+              <View style={styles.pickerRow}>
+                <Pressable
+                  onPress={handlePickImage}
+                  style={({ pressed }) => [
+                    styles.pickerButton,
+                    {
+                      backgroundColor: colors.surface,
+                      borderColor: colors.border,
+                      opacity: pressed ? 0.8 : 1,
+                    },
+                  ]}
+                >
+                  <IconSymbol
+                    name="photo.on.rectangle"
+                    size={22}
+                    color={colors.accent}
+                  />
+                  <AppText variant="label" color={colors.textSecondary}>
+                    GALLERY
+                  </AppText>
+                </Pressable>
+
+                <Pressable
+                  onPress={handleTakePhoto}
+                  style={({ pressed }) => [
+                    styles.pickerButton,
+                    {
+                      backgroundColor: colors.surface,
+                      borderColor: colors.border,
+                      opacity: pressed ? 0.8 : 1,
+                    },
+                  ]}
+                >
+                  <IconSymbol name="camera.fill" size={22} color={colors.accent} />
+                  <AppText variant="label" color={colors.textSecondary}>
+                    CAMERA
+                  </AppText>
+                </Pressable>
               </View>
-            </View>
+            </GlassCard>
 
             <Pressable
-              accessibilityRole="button"
               onPress={handleScan}
+              disabled={!imageUri}
               style={({ pressed }) => [
                 styles.cta,
-                pressed && styles.ctaPressed,
+                { opacity: !imageUri ? 0.5 : pressed ? 0.85 : 1 },
               ]}
             >
               <LinearGradient
-                colors={[
-                  tokens.primaryGradientStart,
-                  tokens.primaryGradientEnd,
-                ]}
+                colors={[tokens.primaryGradientStart, tokens.primaryGradientEnd]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={styles.ctaGradient}
               >
-                <IconSymbol
-                  name="sparkles"
-                  size={20}
-                  color={palette.primaryOn}
-                />
-                <AppText style={styles.ctaText}>Scan Schedule</AppText>
+                <IconSymbol name="sparkles" size={20} color={tokens.textOnPrimary} />
+                <AppText variant="bodyBold" color={tokens.textOnPrimary}>
+                  Scan Schedule
+                </AppText>
               </LinearGradient>
             </Pressable>
-          </View>
-        </ScrollView>
+          </>
+        )}
 
-        <View style={styles.bottomNav} pointerEvents="box-none">
-          <View style={styles.bottomNavInner}>
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => router.push("/(tabs)")}
-              style={styles.navItem}
-            >
-              <IconSymbol
-                name="house"
-                size={22}
-                color={alphaColor(palette.textSecondary, 0.7)}
-              />
-              <AppText style={styles.navLabel}>Home</AppText>
-            </Pressable>
-
-            <View style={styles.navActive}>
-              <IconSymbol
-                name="clock.fill"
-                size={22}
-                color={palette.primaryOn}
-              />
-            </View>
-
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => router.push("/(tabs)/calendar")}
-              style={styles.navItem}
-            >
-              <IconSymbol
-                name="calendar"
-                size={22}
-                color={alphaColor(palette.textSecondary, 0.7)}
-              />
-              <AppText style={styles.navLabel}>Calendar</AppText>
-            </Pressable>
-
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => router.push("/(tabs)/workplaces")}
-              style={styles.navItem}
-            >
-              <IconSymbol
-                name="briefcase.fill"
-                size={22}
-                color={alphaColor(palette.textSecondary, 0.7)}
-              />
-              <AppText style={styles.navLabel}>Jobs</AppText>
-            </Pressable>
-
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => router.push("/(tabs)/settings")}
-              style={styles.navItem}
-            >
-              <IconSymbol
-                name="gearshape.fill"
-                size={22}
-                color={alphaColor(palette.textSecondary, 0.7)}
-              />
-              <AppText style={styles.navLabel}>Settings</AppText>
-            </Pressable>
-          </View>
-        </View>
-      </View>
+        <View style={styles.bottomSpacer} />
+      </ScrollView>
     </AppScreen>
   );
 }
+
+const styles = StyleSheet.create({
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    marginBottom: 8,
+  },
+  headerSpacer: { width: 24 },
+  flex1: { flex: 1 },
+
+  scroll: { paddingHorizontal: 20, paddingBottom: 60, gap: 14 },
+
+  hero: { gap: 8, marginTop: 8, marginBottom: 4 },
+  heroSubtitle: { marginTop: 2 },
+
+  uploadCard: { alignItems: "center", gap: 14 },
+  uploadIcon: {
+    width: 72,
+    height: 72,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  preview: {
+    width: 120,
+    height: 120,
+    borderRadius: 16,
+  },
+  uploadTitle: { marginTop: 4 },
+  pickerRow: { flexDirection: "row", gap: 12, width: "100%" },
+  pickerButton: {
+    flex: 1,
+    minHeight: 76,
+    borderRadius: 16,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+
+  cta: { borderRadius: 999, overflow: "hidden", marginTop: 4 },
+  ctaGradient: {
+    minHeight: 56,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+  },
+
+  processingWrap: {
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 80,
+    paddingHorizontal: 12,
+  },
+  processingTitle: { marginTop: 12 },
+
+  errorIcon: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 4,
+  },
+  errorText: { paddingHorizontal: 8 },
+  retryBtn: { marginTop: 12, minWidth: 160 },
+
+  hintCard: {},
+  hintRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+
+  workplaceGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    marginHorizontal: -6,
+  },
+  gridItem: { width: "50%", paddingHorizontal: 6, paddingBottom: 12 },
+  emptyWorkplaceCard: { alignItems: "center", gap: 12 },
+  addWorkplaceBtn: { minWidth: 180 },
+
+  shiftsLabel: { marginTop: 6 },
+  shiftRow: {},
+  shiftRowInner: { flexDirection: "row", alignItems: "center", gap: 12 },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 1.5,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  actions: { gap: 10, marginTop: 8 },
+
+  bottomSpacer: { height: 40 },
+});

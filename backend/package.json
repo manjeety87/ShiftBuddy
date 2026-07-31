@@ -1,0 +1,21 @@
+{
+  "name": "shiftbuddy-backend",
+  "version": "1.0.0",
+  "description": "ShiftBuddy API server — proxies Gemini Vision OCR so the API key never reaches the mobile app",
+  "main": "server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js"
+  },
+  "dependencies": {
+    "@google/genai": "^1.44.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "multer": "^2.1.1",
+    "sharp": "^0.34.5"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.4"
+  }
+}
