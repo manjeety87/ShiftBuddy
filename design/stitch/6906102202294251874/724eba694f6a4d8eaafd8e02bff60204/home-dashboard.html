@@ -1,0 +1,519 @@
+<!doctype html>
+
+<html class="dark" lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>ShiftsBuddy Dashboard</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;family=Inter:wght@400;500;600;700&amp;display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+      rel="stylesheet"
+    />
+    <script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "tertiary-fixed": "#ffdbcc",
+              surface: "#10131a",
+              "surface-container-highest": "#32353c",
+              "on-secondary-fixed": "#001a41",
+              "inverse-primary": "#005bc1",
+              "on-surface": "#e1e2eb",
+              "surface-bright": "#363940",
+              "surface-dim": "#10131a",
+              "primary-container": "#4b8eff",
+              "secondary-container": "#26467d",
+              error: "#ffb4ab",
+              "secondary-fixed-dim": "#adc6ff",
+              "surface-variant": "#32353c",
+              "on-primary-container": "#00285c",
+              "on-background": "#e1e2eb",
+              "tertiary-fixed-dim": "#ffb595",
+              "primary-fixed": "#d8e2ff",
+              "outline-variant": "#414755",
+              primary: "#adc6ff",
+              "secondary-fixed": "#d8e2ff",
+              "surface-container": "#1d2026",
+              "inverse-on-surface": "#2e3037",
+              "on-primary": "#002e69",
+              "on-surface-variant": "#c1c6d7",
+              "tertiary-container": "#ef6719",
+              "error-container": "#93000a",
+              "on-tertiary": "#571e00",
+              "on-secondary-fixed-variant": "#26467d",
+              "surface-container-lowest": "#0b0e14",
+              tertiary: "#ffb595",
+              "on-tertiary-fixed-variant": "#7c2e00",
+              secondary: "#adc6ff",
+              "surface-tint": "#adc6ff",
+              "surface-container-low": "#191c22",
+              background: "#10131a",
+              "on-error-container": "#ffdad6",
+              "surface-container-high": "#272a31",
+              "inverse-surface": "#e1e2eb",
+              outline: "#8b90a0",
+              "on-secondary": "#082f65",
+              "primary-fixed-dim": "#adc6ff",
+              "on-primary-fixed": "#001a41",
+              "on-tertiary-fixed": "#351000",
+              "on-secondary-container": "#98b5f3",
+              "on-primary-fixed-variant": "#004493",
+              "on-error": "#690005",
+              "on-tertiary-container": "#4c1a00",
+            },
+            fontFamily: {
+              headline: ["Manrope"],
+              body: ["Inter"],
+              label: ["Inter"],
+            },
+            borderRadius: {
+              DEFAULT: "0.125rem",
+              lg: "0.25rem",
+              xl: "0.5rem",
+              full: "0.75rem",
+            },
+          },
+        },
+      };
+    </script>
+    <style>
+      .material-symbols-outlined {
+        font-variation-settings:
+          "FILL" 0,
+          "wght" 400,
+          "GRAD" 0,
+          "opsz" 24;
+        display: inline-block;
+        line-height: 1;
+        text-transform: none;
+        letter-spacing: normal;
+        word-wrap: normal;
+        white-space: nowrap;
+        direction: ltr;
+      }
+      .glass-header {
+        background: rgba(16, 19, 26, 0.7);
+        backdrop-filter: blur(20px);
+      }
+      .no-scrollbar::-webkit-scrollbar {
+        display: none;
+      }
+      .no-scrollbar {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+      }
+    </style>
+    <style>
+      body {
+        min-height: max(884px, 100dvh);
+      }
+    </style>
+  </head>
+  <body class="bg-surface text-on-surface font-body selection:bg-primary/30">
+    <!-- TopAppBar -->
+    <header class="fixed top-0 w-full z-50 glass-header">
+      <div
+        class="flex justify-between items-center px-6 h-16 w-full max-w-screen-xl mx-auto"
+      >
+        <div class="flex items-center gap-3">
+          <div
+            class="w-10 h-10 rounded-full overflow-hidden border border-outline-variant/15"
+          >
+            <img
+              class="w-full h-full object-cover"
+              data-alt="Professional headshot of a smiling man with a beard, soft studio lighting, high-end corporate aesthetic"
+              src="https://lh3.googleusercontent.com/aida-public/AB6AXuAvTM8rscyI4BFGEilR_oz-mhe8Ff-Fe6ajb84dFK6mmX9G7LI5tzxhUMWgzQKHbbk-g5otQDmlkhyIvEQ44rWCTt0bI5uLnFPkPth6Ws14u6knkhH_lK5qiHo2oDfUHZ65gxCqmqQH0OA8P3prIOAwIr_o9qrCKqI7A5Yms1mYYOj0gIS_v9zOcv4Np6LLNk9LPL2HTktoJ8NdEZDO1n4mDkodi7DLThPdwcHrKw-kuVcS1s84fN89esEZcrV19pSFOw70e-6QEg"
+            />
+          </div>
+          <h1
+            class="text-xl font-bold text-[#adc6ff] tracking-tighter font-headline"
+          >
+            ShiftsBuddy
+          </h1>
+        </div>
+        <button
+          class="text-[#adc6ff] hover:bg-[#272a31] transition-colors p-2 rounded-full active:scale-95 duration-200"
+        >
+          <span class="material-symbols-outlined" data-icon="notifications"
+            >notifications</span
+          >
+        </button>
+      </div>
+    </header>
+    <main class="pt-20 pb-32 px-6 max-w-screen-xl mx-auto space-y-8">
+      <!-- Next Shift Hero Card -->
+      <section>
+        <div
+          class="bg-primary-container bg-gradient-to-br from-primary to-primary-container rounded-3xl p-6 shadow-[0px_24px_48px_rgba(0,0,0,0.4),0px_0px_4px_rgba(173,198,255,0.1)] relative overflow-hidden group"
+        >
+          <div
+            class="absolute -right-8 -top-8 w-48 h-48 bg-white/10 rounded-full blur-3xl group-hover:scale-110 transition-transform duration-700"
+          ></div>
+          <div class="relative z-10">
+            <div class="flex justify-between items-start mb-6">
+              <span
+                class="bg-on-primary-container/10 backdrop-blur-md px-4 py-1.5 rounded-full text-[10px] font-bold tracking-widest uppercase text-on-primary-container"
+                >Next Shift</span
+              >
+              <div class="text-right">
+                <p
+                  class="text-on-primary-container/70 text-xs font-semibold uppercase tracking-wider"
+                >
+                  Starting In
+                </p>
+                <p
+                  class="text-2xl font-black font-headline text-on-primary-container"
+                >
+                  2h 14m
+                </p>
+              </div>
+            </div>
+            <h2
+              class="text-3xl font-extrabold font-headline text-on-primary-container leading-tight mb-2"
+            >
+              Central Hospital
+            </h2>
+            <p class="text-on-primary-container/80 font-medium mb-6">
+              Senior Nurse Practitioner • Ward 4B
+            </p>
+            <div class="flex items-center gap-6">
+              <div class="flex items-center gap-2">
+                <span
+                  class="material-symbols-outlined text-on-primary-container/60 text-lg"
+                  >schedule</span
+                >
+                <span class="text-on-primary-container font-semibold"
+                  >19:00 - 07:00</span
+                >
+              </div>
+              <div class="flex items-center gap-2">
+                <span
+                  class="material-symbols-outlined text-on-primary-container/60 text-lg"
+                  >location_on</span
+                >
+                <span class="text-on-primary-container font-semibold"
+                  >Tower Block, Level 3</span
+                >
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+      <!-- Quick Actions Bento -->
+      <section class="grid grid-cols-2 gap-4">
+        <button
+          class="bg-surface-container hover:bg-surface-container-high transition-all active:scale-95 p-4 rounded-2xl flex flex-col items-center justify-center gap-3 border border-outline-variant/10"
+        >
+          <div
+            class="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary"
+          >
+            <span class="material-symbols-outlined">add_circle</span>
+          </div>
+          <span
+            class="font-bold text-xs uppercase tracking-widest text-on-surface-variant"
+            >Add Shift</span
+          >
+        </button>
+        <button
+          class="bg-surface-container hover:bg-surface-container-high transition-all active:scale-95 p-4 rounded-2xl flex flex-col items-center justify-center gap-3 border border-outline-variant/10"
+        >
+          <div
+            class="w-12 h-12 rounded-full bg-tertiary/10 flex items-center justify-center text-tertiary"
+          >
+            <span class="material-symbols-outlined">receipt_long</span>
+          </div>
+          <span
+            class="font-bold text-xs uppercase tracking-widest text-on-surface-variant"
+            >Upload</span
+          >
+        </button>
+      </section>
+      <!-- Conflict Alerts (The Orchestrator's Priority) -->
+      <section class="space-y-4">
+        <h3
+          class="font-headline font-bold text-lg px-2 flex items-center gap-2 text-tertiary"
+        >
+          <span class="material-symbols-outlined">warning</span>
+          Conflict Detected
+        </h3>
+        <div
+          class="bg-surface-container-low rounded-3xl p-6 relative border-l-4 border-tertiary overflow-hidden shadow-lg shadow-black/20"
+        >
+          <div class="absolute inset-0 bg-tertiary/5 pointer-events-none"></div>
+          <p class="text-on-surface-variant text-sm mb-4 leading-relaxed">
+            You have two overlapping assignments on
+            <span class="text-on-surface font-bold">Friday, Oct 24th</span>.
+          </p>
+          <div class="space-y-3">
+            <div
+              class="flex justify-between items-center bg-surface-container p-3 rounded-xl"
+            >
+              <div>
+                <p
+                  class="text-xs font-bold text-primary uppercase tracking-tighter"
+                >
+                  St. Jude Medical
+                </p>
+                <p class="text-sm font-semibold">Night Shift</p>
+              </div>
+              <p class="text-xs font-mono text-on-surface-variant">
+                20:00 - 04:00
+              </p>
+            </div>
+            <div
+              class="flex justify-between items-center bg-surface-container p-3 rounded-xl"
+            >
+              <div>
+                <p
+                  class="text-xs font-bold text-tertiary uppercase tracking-tighter"
+                >
+                  City Health Clinic
+                </p>
+                <p class="text-sm font-semibold">Late Coverage</p>
+              </div>
+              <p class="text-xs font-mono text-on-surface-variant">
+                22:00 - 02:00
+              </p>
+            </div>
+          </div>
+          <button
+            class="mt-6 w-full py-3 rounded-full bg-surface-container-highest text-tertiary font-bold text-sm hover:bg-tertiary hover:text-on-tertiary transition-all duration-300"
+          >
+            Resolve Scheduling
+          </button>
+        </div>
+      </section>
+      <!-- Today's Shifts -->
+      <section class="space-y-4">
+        <div class="flex justify-between items-end px-2">
+          <h3 class="font-headline font-bold text-xl">Today's Schedule</h3>
+          <span class="text-xs font-bold text-outline uppercase tracking-widest"
+            >Oct 22, 2023</span
+          >
+        </div>
+        <div class="space-y-3">
+          <!-- Item 1 -->
+          <div
+            class="bg-surface-container-low p-5 rounded-2xl flex items-center justify-between group hover:bg-surface-container transition-colors"
+          >
+            <div class="flex items-center gap-4">
+              <div class="w-1.5 h-10 bg-primary rounded-full"></div>
+              <div>
+                <h4 class="font-bold text-on-surface">Metro General</h4>
+                <p class="text-sm text-on-surface-variant">Morning Rounds</p>
+              </div>
+            </div>
+            <div class="text-right">
+              <p class="font-bold text-primary">06:00 - 14:00</p>
+              <span
+                class="text-[10px] font-bold px-2 py-0.5 rounded bg-surface-variant text-on-surface-variant"
+                >COMPLETED</span
+              >
+            </div>
+          </div>
+          <!-- Item 2 -->
+          <div
+            class="bg-surface-container p-5 rounded-2xl flex items-center justify-between border-l-4 border-primary shadow-sm"
+          >
+            <div class="flex items-center gap-4">
+              <div
+                class="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center"
+              >
+                <span class="material-symbols-outlined text-primary"
+                  >clinical_notes</span
+                >
+              </div>
+              <div>
+                <h4 class="font-bold text-on-surface">Central Hospital</h4>
+                <p class="text-sm text-on-surface-variant">Night Charge</p>
+              </div>
+            </div>
+            <div class="text-right">
+              <p class="font-bold text-on-surface">19:00 - 07:00</p>
+              <span
+                class="text-[10px] font-bold px-2 py-0.5 rounded bg-primary/20 text-primary"
+                >UPCOMING</span
+              >
+            </div>
+          </div>
+        </div>
+      </section>
+      <!-- This Week Preview -->
+      <section class="space-y-4">
+        <h3 class="font-headline font-bold text-xl px-2">This Week</h3>
+        <div class="flex gap-4 overflow-x-auto no-scrollbar -mx-6 px-6 pb-4">
+          <!-- Mon -->
+          <div
+            class="min-w-[120px] bg-surface-container-low p-4 rounded-3xl flex flex-col items-center gap-2 border border-outline-variant/5"
+          >
+            <span
+              class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest"
+              >Mon 21</span
+            >
+            <div class="w-10 h-1 bg-primary/30 rounded-full"></div>
+            <p class="text-lg font-black font-headline">8h</p>
+          </div>
+          <!-- Tue -->
+          <div
+            class="min-w-[120px] bg-primary-container/20 p-4 rounded-3xl flex flex-col items-center gap-2 border border-primary/20"
+          >
+            <span
+              class="text-[10px] font-bold text-primary uppercase tracking-widest"
+              >Tue 22</span
+            >
+            <div class="w-10 h-1 bg-primary rounded-full"></div>
+            <p class="text-lg font-black font-headline text-primary">12h</p>
+          </div>
+          <!-- Wed -->
+          <div
+            class="min-w-[120px] bg-surface-container-low p-4 rounded-3xl flex flex-col items-center gap-2 border border-outline-variant/5"
+          >
+            <span
+              class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest"
+              >Wed 23</span
+            >
+            <div class="w-10 h-1 bg-primary/30 rounded-full"></div>
+            <p class="text-lg font-black font-headline">10h</p>
+          </div>
+          <!-- Thu -->
+          <div
+            class="min-w-[120px] bg-surface-container-low p-4 rounded-3xl flex flex-col items-center gap-2 border border-outline-variant/5"
+          >
+            <span
+              class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest"
+              >Thu 24</span
+            >
+            <div class="w-10 h-1 bg-tertiary/50 rounded-full"></div>
+            <p class="text-lg font-black font-headline">14h</p>
+          </div>
+        </div>
+      </section>
+      <!-- Workplace Summary -->
+      <section class="space-y-4">
+        <h3 class="font-headline font-bold text-xl px-2">Workplaces</h3>
+        <div class="grid grid-cols-1 gap-4">
+          <div
+            class="bg-surface-container-low p-4 rounded-2xl flex items-center justify-between border-b border-outline-variant/10"
+          >
+            <div class="flex items-center gap-4">
+              <div class="w-3 h-3 rounded-full bg-primary"></div>
+              <h4 class="font-semibold">Central Hospital</h4>
+            </div>
+            <p class="text-xs font-bold text-on-surface-variant">
+              12 Shifts <span class="text-outline">/mo</span>
+            </p>
+          </div>
+          <div
+            class="bg-surface-container-low p-4 rounded-2xl flex items-center justify-between border-b border-outline-variant/10"
+          >
+            <div class="flex items-center gap-4">
+              <div class="w-3 h-3 rounded-full bg-tertiary"></div>
+              <h4 class="font-semibold">Metro General</h4>
+            </div>
+            <p class="text-xs font-bold text-on-surface-variant">
+              8 Shifts <span class="text-outline">/mo</span>
+            </p>
+          </div>
+          <div
+            class="bg-surface-container-low p-4 rounded-2xl flex items-center justify-between border-b border-outline-variant/10"
+          >
+            <div class="flex items-center gap-4">
+              <div class="w-3 h-3 rounded-full bg-secondary"></div>
+              <h4 class="font-semibold">City Health Clinic</h4>
+            </div>
+            <p class="text-xs font-bold text-on-surface-variant">
+              4 Shifts <span class="text-outline">/mo</span>
+            </p>
+          </div>
+        </div>
+      </section>
+    </main>
+    <!-- FAB for Add Shift (Contextual Action) -->
+    <button
+      class="fixed bottom-28 right-6 w-14 h-14 bg-gradient-to-tr from-primary to-primary-container text-on-primary rounded-full shadow-2xl flex items-center justify-center active:scale-90 duration-300 z-40"
+    >
+      <span
+        class="material-symbols-outlined text-3xl"
+        style="font-variation-settings: &quot;FILL&quot; 1"
+        >add</span
+      >
+    </button>
+    <!-- BottomNavBar -->
+    <nav
+      class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-4 pb-6 pt-3 bg-[#10131a]/80 backdrop-blur-2xl rounded-t-[2rem] border-t border-[#414755]/15 shadow-[0px_-8px_24px_rgba(0,0,0,0.3)]"
+    >
+      <a
+        class="flex flex-col items-center justify-center text-[#adc6ff] bg-[#adc6ff]/10 rounded-full px-4 py-1 active:scale-90 duration-300"
+        href="#"
+      >
+        <span
+          class="material-symbols-outlined"
+          data-icon="dashboard"
+          style="font-variation-settings: &quot;FILL&quot; 1"
+          >dashboard</span
+        >
+        <span
+          class="font-['Inter'] text-[11px] font-semibold uppercase tracking-wider"
+          >Home</span
+        >
+      </a>
+      <a
+        class="flex flex-col items-center justify-center text-[#414755] hover:text-[#adc6ff] transition-all active:scale-90 duration-300"
+        href="#"
+      >
+        <span class="material-symbols-outlined" data-icon="list_alt"
+          >list_alt</span
+        >
+        <span
+          class="font-['Inter'] text-[11px] font-semibold uppercase tracking-wider"
+          >Shifts</span
+        >
+      </a>
+      <a
+        class="flex flex-col items-center justify-center text-[#414755] hover:text-[#adc6ff] transition-all active:scale-90 duration-300"
+        href="#"
+      >
+        <span class="material-symbols-outlined" data-icon="calendar_month"
+          >calendar_month</span
+        >
+        <span
+          class="font-['Inter'] text-[11px] font-semibold uppercase tracking-wider"
+          >Calendar</span
+        >
+      </a>
+      <a
+        class="flex flex-col items-center justify-center text-[#414755] hover:text-[#adc6ff] transition-all active:scale-90 duration-300"
+        href="#"
+      >
+        <span class="material-symbols-outlined" data-icon="work">work</span>
+        <span
+          class="font-['Inter'] text-[11px] font-semibold uppercase tracking-wider"
+          >Jobs</span
+        >
+      </a>
+      <a
+        class="flex flex-col items-center justify-center text-[#414755] hover:text-[#adc6ff] transition-all active:scale-90 duration-300"
+        href="#"
+      >
+        <span class="material-symbols-outlined" data-icon="settings"
+          >settings</span
+        >
+        <span
+          class="font-['Inter'] text-[11px] font-semibold uppercase tracking-wider"
+          >Settings</span
+        >
+      </a>
+    </nav>
+  </body>
+</html>

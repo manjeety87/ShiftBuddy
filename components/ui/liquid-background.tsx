@@ -137,6 +137,8 @@ export function LiquidBackground({ visible = true }: LiquidBackgroundProps) {
 
   const largestSide = Math.max(width, height);
 
+  const blobOpacity = tokens.blobOpacity * 0.6;
+
   return (
     <View style={styles.container}>
       <LinearGradient
@@ -168,7 +170,7 @@ export function LiquidBackground({ visible = true }: LiquidBackgroundProps) {
 
             backgroundColor: tokens.blobPrimary,
 
-            opacity: tokens.blobOpacity,
+            opacity: blobOpacity,
           },
         ]}
       />
@@ -189,7 +191,7 @@ export function LiquidBackground({ visible = true }: LiquidBackgroundProps) {
 
             backgroundColor: tokens.blobSecondary,
 
-            opacity: tokens.blobOpacity * 0.9,
+            opacity: blobOpacity * 0.9,
           },
         ]}
       />
@@ -210,13 +212,13 @@ export function LiquidBackground({ visible = true }: LiquidBackgroundProps) {
 
             backgroundColor: tokens.blobTertiary,
 
-            opacity: tokens.blobOpacity * 0.72,
+            opacity: blobOpacity * 0.72,
           },
         ]}
       />
 
       <BlurView
-        intensity={34}
+        intensity={18}
         tint={tokens.glassTint}
         style={StyleSheet.absoluteFill}
       />

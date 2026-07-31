@@ -40,17 +40,23 @@ export function GlassCard({
         : isGlass
           ? colors.border
           : colors.border,
+      // Android's `elevation` is a quantized Material lookup table, not a
+      // tunable blur — even elevation:2-3 renders a visibly large, tinted
+      // halo that no small numeric tweak fixes, so Android gets none at
+      // all (the border carries definition instead, matching web's flat
+      // look). iOS/web read shadowOpacity/shadowRadius directly and stay
+      // soft at these values.
       shadowColor: isGlass ? colors.accent + "15" : colors.shadow,
-      shadowOffset: { width: 0, height: isGlass ? 8 : 4 },
-      shadowOpacity: isGlass ? 0.25 : 0.08,
-      shadowRadius: isGlass ? 24 : 8,
-      elevation: isGlass ? 8 : 3,
+      shadowOffset: { width: 0, height: isGlass ? 5 : 3 },
+      shadowOpacity: isGlass ? 0.14 : 0.06,
+      shadowRadius: isGlass ? 14 : 6,
+      elevation: Platform.OS === "android" ? 0 : isGlass ? 3 : 2,
     },
     accentBorder && { borderLeftWidth: 3, borderLeftColor: accentBorder },
     style,
   ];
 
-  if (isGlass && Platform.OS === "ios") {
+  if (isGlass && Platform.OS !== "web") {
     return (
       <View style={[styles.blurWrapper, { borderRadius }]} {...rest}>
         <BlurView
@@ -71,7 +77,7 @@ export function GlassCard({
     );
   }
 
-  // Fallback for Android or non-glass themes
+  // Fallback for web or non-glass themes (web renders blur via its own CSS path)
   return (
     <View
       style={[

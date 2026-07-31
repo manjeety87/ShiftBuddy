@@ -148,15 +148,16 @@ function GlassSurface({
   const shadow = (
     Platform.OS === "web"
       ? {
-          boxShadow: `0px 12px 32px ${tokens.ambientShadow}`,
+          boxShadow: `0px 8px 20px ${tokens.ambientShadow}`,
         }
-      : {
-          shadowColor: tokens.shadow,
-          shadowOffset: { width: 0, height: 12 },
-          shadowOpacity: tokens.mode === "dark" ? 0.26 : 0.1,
-          shadowRadius: 24,
-          elevation: 4,
-        }
+      : Platform.OS === "android"
+        ? { elevation: 0 }
+        : {
+            shadowColor: tokens.shadow,
+            shadowOffset: { width: 0, height: 5 },
+            shadowOpacity: tokens.mode === "dark" ? 0.16 : 0.06,
+            shadowRadius: 14,
+          }
   ) as ViewStyle;
 
   const background = strong
@@ -179,7 +180,6 @@ function GlassSurface({
       <BlurView
         intensity={tokens.glassBlur}
         tint={tokens.glassTint}
-        experimentalBlurMethod="dimezisBlurView"
         style={[StyleSheet.absoluteFill, styles.decorative]}
       />
 
@@ -254,7 +254,7 @@ function QuickAction({
 }: QuickActionProps) {
   return (
     <View style={styles.quickWrap}>
-      <GlassSurface tokens={tokens} style={styles.quickSurface}>
+      <GlassSurface tokens={tokens} padding={10} style={styles.quickSurface}>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={label}
@@ -264,12 +264,13 @@ function QuickAction({
             { opacity: pressed ? 0.7 : 1 },
           ]}
         >
-          <MaterialCommunityIcons name={icon} size={26} color={color} />
+          <MaterialCommunityIcons name={icon} size={22} color={color} />
         </Pressable>
         <AppText
           variant="caption"
           color={tokens.textSecondary}
           style={styles.quickButtonText}
+          numberOfLines={1}
           center
         >
           {label}
@@ -1294,28 +1295,24 @@ const styles = StyleSheet.create({
   quickGrid: {
     flexDirection: "row",
     width: "100%",
-    // flexWrap: "wrap",
-    justifyContent: "space-between",
-    // gap: 10,
-    alignItems: "center",
+    alignItems: "flex-start",
+    gap: 10,
   },
 
   quickWrap: {
     flex: 1,
     minWidth: 0,
     alignItems: "center",
-    // gap: 8,
+    gap: 6,
   },
 
   quickButtonText: {
-    // textAlign: "center",
-    // marginTop: 4,
+    marginTop: 2,
   },
 
   quickSurface: {
     width: "100%",
-    // aspectRatio: 1,
-    // padding: 10,
+    aspectRatio: 1,
   },
 
   quickButton: {

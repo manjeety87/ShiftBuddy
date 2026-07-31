@@ -1,70 +1,237 @@
-// Fallback for using MaterialIcons on Android and web.
-
-import MaterialIcons from "@expo/vector-icons/MaterialIcons";
-import { SymbolViewProps, SymbolWeight } from "expo-symbols";
-import { ComponentProps } from "react";
-import { OpaqueColorValue, type StyleProp, type TextStyle } from "react-native";
-
-type IconMapping = Record<
-  SymbolViewProps["name"],
-  ComponentProps<typeof MaterialIcons>["name"]
->;
-type IconSymbolName = keyof typeof MAPPING;
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
+import { SymbolView, SymbolViewProps, SymbolWeight } from "expo-symbols";
+import { Platform, StyleProp, ViewStyle } from "react-native";
 
 /**
- * Add your SF Symbols to Material Icons mappings here.
- * - see Material Icons in the [Icons Directory](https://icons.expo.fyi).
- * - see SF Symbols in the [SF Symbols](https://developer.apple.com/sf-symbols/) app.
+ * Unified cross-platform icon component.
+ * - iOS: Uses native SF Symbols via expo-symbols (supports weight, FILL, variable fonts)
+ * - Android/Web: Falls back to MaterialCommunityIcons from @expo/vector-icons — the same
+ *   icon font already used directly by the tab bar and Home screen, which is confirmed to
+ *   actually render on-device (MaterialIcons was swapped out after persisting as blank).
+ *
+ * Icon names use SF Symbol naming convention. Add mappings in ICON_MAP for Android fallback.
  */
-const MAPPING = {
-  "house.fill": "home",
-  "paperplane.fill": "send",
-  "chevron.left.forwardslash.chevron.right": "code",
-  "chevron.right": "chevron-right",
+
+const ICON_MAP = {
+  // Navigation
   "chevron.left": "chevron-left",
-  calendar: "event",
-  "briefcase.fill": "work",
-  "gearshape.fill": "settings",
-  "plus.circle.fill": "add-circle",
-  "exclamationmark.triangle.fill": "warning",
-  "person.circle.fill": "account-circle",
-  "camera.fill": "camera-alt",
-  "arrow.triangle.2.circlepath": "sync",
-  "clock.fill": "schedule",
-  "bolt.fill": "flash-on",
-  "arrow.right": "arrow-forward",
-  mappin: "place",
-  "dollarsign.circle.fill": "attach-money",
-  "note.text": "sticky-note-2",
-  "trash.fill": "delete",
-  pencil: "edit",
-  "xmark.circle.fill": "cancel",
+  "chevron.right": "chevron-right",
+  "chevron.up": "chevron-up",
+  "chevron.down": "chevron-down",
+  "arrow.backward": "arrow-left",
+  "arrow.forward": "arrow-right",
+  xmark: "close",
+
+  // Tab Bar / Main Navigation
+  "house.fill": "home",
+  house: "home-outline",
+  "text.badge.plus": "clock-outline",
+  calendar: "calendar-month",
+  "briefcase.fill": "briefcase-outline",
+  "gearshape.fill": "cog",
+  gearshape: "cog-outline",
+
+  // Actions
+  plus: "plus",
+  "plus.circle.fill": "plus-circle",
+  "plus.app.fill": "plus-circle",
+  "camera.fill": "camera",
+  "photo.fill": "image",
+  "photo.on.rectangle": "image-multiple",
+  "cloud.upload.fill": "cloud-upload-outline",
+  "doc.text.fill": "file-document-outline",
+  magnifyingglass: "magnify",
+  "bell.fill": "bell-outline",
+  "bell.badge.fill": "bell-ring-outline",
+
+  // Shift/Status
+  "clock.fill": "clock-outline",
+  clock: "clock-outline",
+  checkmark: "check",
   "checkmark.circle.fill": "check-circle",
-} as IconMapping;
+  "checkmark.circle": "check-circle-outline",
+  "exclamationmark.triangle.fill": "alert",
+  "exclamationmark.circle.fill": "alert-circle",
+  "questionmark.circle.fill": "help-circle",
+  "xmark.circle.fill": "close-circle",
+  "trash.fill": "trash-can-outline",
+  "flag.fill": "flag",
+  flag: "flag-outline",
+  "safari.fill": "compass",
+  safari: "compass-outline",
+  pencil: "pencil",
+  "pencil.fill": "pencil",
+
+  // Workplace/Location
+  "mappin.and.ellipse": "map-marker",
+  mappin: "map-marker",
+  "location.fill": "map-marker",
+  "building.2.fill": "domain",
+  "building.2": "domain",
+
+  // Notes/Text
+  "note.text": "note-text-outline",
+
+  // User/Profile
+  "person.fill": "account",
+  "person.circle.fill": "account-circle",
+  "person.crop.circle.fill": "account-circle",
+
+  // Settings/Config
+  "slider.horizontal.3": "tune",
+  "paintpalette.fill": "palette",
+  "sun.max.fill": "white-balance-sunny",
+  "eye.fill": "eye",
+
+  // OCR/Upload
+  "doc.text.viewfinder": "text-box-search-outline",
+  viewfinder: "camera",
+  sparkles: "creation",
+
+  // Time/Calendar
+  "calendar.badge.plus": "calendar-plus",
+  "calendar.badge.clock": "calendar-clock",
+  "clock.badge.checkmark": "check-all",
+
+  // Conflict/Alert
+  "exclamationmark.2": "alert-octagon",
+  "exclamationmark.octagon.fill": "alert-decagram",
+
+  // Money/Earnings
+  "dollarsign.circle.fill": "currency-usd",
+  "creditcard.fill": "credit-card-outline",
+
+  // Sync/Refresh
+  "arrow.clockwise": "refresh",
+  "arrow.triangle.2.circlepath": "sync",
+  "arrow.triangle.2.circlepath.circle.fill": "sync-circle",
+
+  // More
+  ellipsis: "dots-vertical",
+  "ellipsis.circle": "dots-horizontal-circle",
+  "line.3.horizontal": "menu",
+  "line.3.horizontal.decrease": "menu",
+} as const;
+
+export type IconName = keyof typeof ICON_MAP;
+
+export interface IconSymbolProps {
+  /** SF Symbol name (e.g., "house.fill", "chevron.right") */
+  name: IconName;
+  /** Icon size in points */
+  size?: number;
+  /** Icon color (any valid React Native color) */
+  color?: string;
+  /** Additional style */
+  style?: StyleProp<ViewStyle>;
+  /** SF Symbol weight (iOS only) */
+  weight?: SymbolWeight;
+  /** SF Symbol FILL value 0-1 (iOS only) - maps to font-variation-settings FILL axis */
+  fill?: 0 | 0.25 | 0.5 | 0.75 | 1;
+  /** Accessibility label */
+  accessibilityLabel?: string;
+}
 
 /**
- * An icon component that uses native SF Symbols on iOS, and Material Icons on Android and web.
- * This ensures a consistent look across platforms, and optimal resource usage.
- * Icon `name`s are based on SF Symbols and require manual mapping to Material Icons.
+ * Unified icon component using SF Symbols on iOS, Material Icons elsewhere.
+ *
+ * @example
+ * ```tsx
+ * // Basic usage
+ * <IconSymbol name="house.fill" size={24} color="#0052FF" />
+ *
+ * // Filled variant (iOS only - uses FILL axis)
+ * <IconSymbol name="house.fill" fill={1} size={28} color="#0052FF" />
+ *
+ * // Outlined variant (iOS only)
+ * <IconSymbol name="house" fill={0} size={28} color="#0052FF" />
+ * ```
  */
 export function IconSymbol({
   name,
   size = 24,
   color,
   style,
-}: {
-  name: IconSymbolName;
-  size?: number;
-  color: string | OpaqueColorValue;
-  style?: StyleProp<TextStyle>;
-  weight?: SymbolWeight;
-}) {
+  weight = "regular",
+  fill = 0,
+  accessibilityLabel,
+}: IconSymbolProps) {
+  const materialName = ICON_MAP[name];
+
+  if (Platform.OS === "ios") {
+    // Use native SF Symbols on iOS with variable font support
+    const symbolProps: SymbolViewProps = {
+      name: name as SymbolViewProps["name"],
+      weight,
+      tintColor: color,
+      style: [{ width: size, height: size }, style] as StyleProp<ViewStyle>,
+      accessibilityLabel,
+    };
+
+    // Apply FILL variation via font-variation-settings
+    if (fill > 0) {
+      return (
+        <SymbolView
+          {...symbolProps}
+          style={[
+            symbolProps.style,
+            {
+              fontVariationSettings: `'FILL' ${fill}, 'wght' ${weightToValue(
+                weight,
+              )}`,
+            } as ViewStyle,
+          ]}
+        />
+      );
+    }
+
+    return <SymbolView {...symbolProps} />;
+  }
+
+  // Android / Web fallback: MaterialCommunityIcons
+  if (!materialName) {
+    console.warn(
+      `[IconSymbol] No MaterialCommunityIcons mapping for SF Symbol: "${name}"`,
+    );
+  }
+
   return (
-    <MaterialIcons
-      color={color}
+    <MaterialCommunityIcons
+      name={(materialName ?? "help-circle") as any}
       size={size}
-      name={MAPPING[name]}
-      style={style}
+      color={color}
+      style={style as any}
+      accessibilityLabel={accessibilityLabel}
     />
   );
 }
+
+function weightToValue(weight: string): number {
+  switch (weight) {
+    case "ultralight":
+      return 100;
+    case "thin":
+      return 200;
+    case "light":
+      return 300;
+    case "regular":
+      return 400;
+    case "medium":
+      return 500;
+    case "semibold":
+      return 600;
+    case "bold":
+      return 700;
+    case "heavy":
+      return 800;
+    case "black":
+      return 900;
+    default:
+      return 400;
+  }
+}
+
+// Re-export for convenience
+export type { SymbolWeight } from "expo-symbols";
+export type { StyleProp, ViewStyle } from "react-native";
+

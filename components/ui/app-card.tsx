@@ -161,24 +161,31 @@ export function AppCard({
     ? (conflictAccent ?? tokens.conflict)
     : accentBorder;
 
+  // Android's `elevation` shadow is a quantized Material lookup table, not
+  // a continuously tunable blur — even elevation:1-2 renders a visibly
+  // large, saturated halo (worse with a tinted shadowColor), and no small
+  // numeric tweak fixes that. So Android gets no elevation at all here;
+  // the border (below) carries the card definition instead, matching
+  // web's flat look. iOS's shadow is genuinely soft/continuous, so it
+  // keeps a subtle one.
   const shadowStyle: ViewStyle =
     Platform.OS === "web"
       ? {
-          boxShadow:
-            tokens.mode === "dark"
-              ? `0px 10px 28px ${tokens.ambientShadow}`
-              : `0px 10px 28px ${tokens.ambientShadow}`,
+          boxShadow: `0px 8px 20px ${tokens.ambientShadow}`,
         }
-      : {
-          shadowColor: tokens.shadow,
-          shadowOpacity: tokens.mode === "dark" ? 0.22 : 0.09,
-          shadowRadius: 18,
-          shadowOffset: {
-            width: 0,
-            height: 8,
-          },
-          elevation: 3,
-        };
+      : Platform.OS === "android"
+        ? {
+            elevation: 0,
+          }
+        : {
+            shadowColor: tokens.shadow,
+            shadowOpacity: tokens.mode === "dark" ? 0.14 : 0.06,
+            shadowRadius: 12,
+            shadowOffset: {
+              width: 0,
+              height: 5,
+            },
+          };
 
   return (
     <View
@@ -201,18 +208,7 @@ export function AppCard({
 
           borderLeftColor: leftAccent ?? accentBorder ?? tokens.glassBorder,
 
-          shadowColor: tokens.shadow,
-
-          shadowOpacity: tokens.mode === "dark" ? 0.22 : 0.09,
-
-          shadowRadius: 18,
-
-          shadowOffset: {
-            width: 0,
-            height: 8,
-          },
-
-          elevation: Platform.OS === "android" ? 3 : 0,
+          ...shadowStyle,
         },
 
         isConflict && {
