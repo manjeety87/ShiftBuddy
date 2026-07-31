@@ -9,33 +9,96 @@ import {
   View,
 } from "react-native";
 
-import { AppButton } from "@/components/ui/app-button";
 import { AppScreen } from "@/components/ui/app-screen";
 import { AppText } from "@/components/ui/app-text";
-import { IconSymbol } from "@/components/ui/icon-symbol";
+import { IconSymbol, type IconName } from "@/components/ui/icon-symbol";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useShiftStore } from "@/store";
-import type { Shift } from "@/types";
+import { resolveFontFamily } from "@/theme/design-system";
+import type { ThemeTokens } from "@/theme/types";
+import type { Shift, ShiftSource, ShiftStatus } from "@/types";
 import { getShiftWorkplaceLabel } from "@/utils/shift-labels";
-
-const fmtDateTime = (iso: string) =>
-  new Date(iso).toLocaleString(undefined, {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+import { LinearGradient } from "expo-linear-gradient";
 
 const fmtTime = (iso: string) =>
   new Date(iso).toLocaleTimeString([], {
     hour: "2-digit",
     minute: "2-digit",
+    hour12: false,
   });
 
+const formatDayKey = (date: Date) =>
+  `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+
+function addDays(date: Date, days: number): Date {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+function groupLabel(date: Date, now: Date): string {
+  if (formatDayKey(date) === formatDayKey(now)) {
+    return "Today";
+  }
+
+  if (formatDayKey(date) === formatDayKey(addDays(now, 1))) {
+    return "Tomorrow";
+  }
+
+  return date.toLocaleDateString(undefined, {
+    weekday: "long",
+    month: "short",
+    day: "numeric",
+  });
+}
+
+function statusMeta(
+  status: ShiftStatus,
+  tokens: ThemeTokens,
+): { label: string; bg: string; fg: string } {
+  if (status === "pending") {
+    return { label: "Pending", bg: tokens.warningSoft, fg: tokens.warning };
+  }
+
+  if (status === "cancelled") {
+    return { label: "Cancelled", bg: tokens.errorSoft, fg: tokens.error };
+  }
+
+  return { label: "Confirmed", bg: tokens.successSoft, fg: tokens.success };
+}
+
+function sourceMeta(
+  source: ShiftSource,
+  tokens: ThemeTokens,
+): { label: string; icon: IconName; bg: string; fg: string } {
+  if (source === "manual") {
+    return {
+      label: "Manual",
+      icon: "pencil.fill",
+      bg: tokens.surfaceSelected,
+      fg: tokens.textSecondary,
+    };
+  }
+
+  if (source === "google_calendar") {
+    return {
+      label: "Synced",
+      icon: "arrow.triangle.2.circlepath",
+      bg: tokens.successSoft,
+      fg: tokens.success,
+    };
+  }
+
+  return {
+    label: "OCR",
+    icon: "doc.text.viewfinder",
+    bg: `${tokens.primary}1A`,
+    fg: tokens.primary,
+  };
+}
+
 export default function ShiftsTabScreen() {
-  const { theme } = useAppTheme();
-  const tokens = theme.tokens;
+  const { tokens } = useAppTheme();
 
   const shifts = useShiftStore((state) => state.shifts);
   const workplaces = useShiftStore((state) => state.workplaces);
@@ -45,17 +108,60 @@ export default function ShiftsTabScreen() {
 
   const selectionMode = selectedIds.size > 0;
 
-  const sortedShifts = useMemo(
+  const now = new Date();
+
+  const upcomingShifts = useMemo(
     () =>
       [...shifts]
-        .filter((shift) => shift.status !== "cancelled")
+        .filter(
+          (shift) =>
+            shift.status !== "cancelled" &&
+            new Date(shift.endDateTime).getTime() >= now.getTime(),
+        )
         .sort(
           (a, b) =>
             new Date(a.startDateTime).getTime() -
             new Date(b.startDateTime).getTime(),
         ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [shifts],
   );
+
+  const sevenDaysOut = now.getTime() + 7 * 86_400_000;
+
+  const next7DayShifts = upcomingShifts.filter(
+    (shift) => new Date(shift.startDateTime).getTime() < sevenDaysOut,
+  );
+
+  const estimatedPayout = next7DayShifts.reduce((sum, shift) => {
+    const workplace = workplaces.find((wp) => wp.id === shift.workplaceId);
+    const hours =
+      (new Date(shift.endDateTime).getTime() -
+        new Date(shift.startDateTime).getTime()) /
+      3_600_000;
+
+    return sum + hours * (workplace?.hourlyRate ?? 0);
+  }, 0);
+
+  const dayGroups = useMemo(() => {
+    const groups: { key: string; date: Date; shifts: Shift[] }[] = [];
+    const indexByKey = new Map<string, number>();
+
+    for (const shift of upcomingShifts) {
+      const date = new Date(shift.startDateTime);
+      const key = formatDayKey(date);
+
+      if (!indexByKey.has(key)) {
+        indexByKey.set(key, groups.length);
+        groups.push({ key, date, shifts: [] });
+      }
+
+      groups[indexByKey.get(key)!].shifts.push(shift);
+    }
+
+    return groups;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [upcomingShifts]);
 
   const clearSelection = () => {
     setSelectedIds(new Set());
@@ -81,12 +187,7 @@ export default function ShiftsTabScreen() {
       return;
     }
 
-    // router.push({
-    //   pathname: "/edit-shift",
-    //   params: {
-    //     id: shift.id,
-    //   },
-    // });
+    router.push(`/add-shift?id=${shift.id}`);
   };
 
   const handleShiftLongPress = (shiftId: string) => {
@@ -94,43 +195,13 @@ export default function ShiftsTabScreen() {
   };
 
   const selectAll = () => {
-    if (selectedIds.size === sortedShifts.length) {
+    if (selectedIds.size === upcomingShifts.length) {
       clearSelection();
       return;
     }
 
-    setSelectedIds(new Set(sortedShifts.map((shift) => shift.id)));
+    setSelectedIds(new Set(upcomingShifts.map((shift) => shift.id)));
   };
-
-  // const confirmDeleteSelected = () => {
-  //   const count = selectedIds.size;
-
-  //   if (count === 0) return;
-
-  //   Alert.alert(
-  //     count === 1 ? "Delete Shift?" : `Delete ${count} Shifts?`,
-  //     count === 1
-  //       ? "This shift will be permanently removed from your schedule."
-  //       : "These shifts will be permanently removed from your schedule.",
-  //     [
-  //       {
-  //         text: "Cancel",
-  //         style: "cancel",
-  //       },
-  //       {
-  //         text: "Delete",
-  //         style: "destructive",
-  //         onPress: () => {
-  //           for (const id of selectedIds) {
-  //             removeShift(id);
-  //           }
-
-  //           clearSelection();
-  //         },
-  //       },
-  //     ],
-  //   );
-  // };
 
   const confirmDeleteSelected = () => {
     const ids = Array.from(selectedIds);
@@ -139,8 +210,6 @@ export default function ShiftsTabScreen() {
     if (count === 0) return;
 
     const performDelete = () => {
-      console.log("Deleting selected shifts:", ids);
-
       removeShifts(ids);
       clearSelection();
     };
@@ -152,10 +221,6 @@ export default function ShiftsTabScreen() {
         ? "This shift will be permanently removed from your schedule."
         : "These shifts will be permanently removed from your schedule.";
 
-    /*
-     * React Native Web does not reliably support Alert.alert
-     * button callbacks, so use the browser confirmation dialog.
-     */
     if (Platform.OS === "web") {
       const confirmed = window.confirm(`${title}\n\n${message}`);
 
@@ -167,15 +232,8 @@ export default function ShiftsTabScreen() {
     }
 
     Alert.alert(title, message, [
-      {
-        text: "Cancel",
-        style: "cancel",
-      },
-      {
-        text: "Delete",
-        style: "destructive",
-        onPress: performDelete,
-      },
+      { text: "Cancel", style: "cancel" },
+      { text: "Delete", style: "destructive", onPress: performDelete },
     ]);
   };
 
@@ -201,7 +259,7 @@ export default function ShiftsTabScreen() {
 
                 <Pressable onPress={selectAll}>
                   <AppText variant="captionBold" color={tokens.primary}>
-                    {selectedIds.size === sortedShifts.length
+                    {selectedIds.size === upcomingShifts.length
                       ? "Clear All"
                       : "Select All"}
                   </AppText>
@@ -209,55 +267,90 @@ export default function ShiftsTabScreen() {
               </View>
 
               <Pressable
-                onPress={() => {
-                  console.log("Trash pressed", Array.from(selectedIds));
-                  confirmDeleteSelected();
-                }}
+                onPress={confirmDeleteSelected}
                 hitSlop={12}
                 style={[
                   styles.deleteButton,
-                  {
-                    backgroundColor: `${tokens.error}18`,
-                  },
+                  { backgroundColor: `${tokens.error}18` },
                 ]}
               >
                 <IconSymbol name="trash.fill" size={19} color={tokens.error} />
               </Pressable>
             </>
           ) : (
-            <>
-              <View>
-                <AppText variant="heading" color={tokens.primary}>
-                  Shifts
-                </AppText>
-
-                {sortedShifts.length > 0 && (
-                  <AppText variant="caption" color={tokens.textSecondary}>
-                    Tap to edit · Long press to select
-                  </AppText>
-                )}
-              </View>
-
-              <Pressable
-                onPress={() => router.push("/add-shift")}
-                style={[
-                  styles.addHeaderButton,
-                  {
-                    backgroundColor: `${tokens.primary}18`,
-                  },
-                ]}
+            <View style={styles.editorial}>
+              <AppText
+                variant="label"
+                color={tokens.textSecondary}
+                style={styles.eyebrow}
               >
-                <IconSymbol
-                  name="plus.circle.fill"
-                  size={18}
-                  color={tokens.primary}
-                />
+                Your Schedule
+              </AppText>
 
-                <AppText variant="captionBold" color={tokens.primary}>
-                  Add Shift
+              <AppText variant="title" color={tokens.textPrimary}>
+                Upcoming Shifts
+              </AppText>
+
+              {upcomingShifts.length > 0 && (
+                <AppText
+                  variant="caption"
+                  color={tokens.textSecondary}
+                  style={styles.hint}
+                >
+                  Long press a shift to select it
                 </AppText>
-              </Pressable>
-            </>
+              )}
+
+              <View style={styles.statsRow}>
+                <View
+                  style={[
+                    styles.statCard,
+                    {
+                      backgroundColor: tokens.glassBackgroundStrong,
+                      borderColor: tokens.glassBorder,
+                    },
+                  ]}
+                >
+                  <AppText
+                    variant="captionBold"
+                    color={tokens.textSecondary}
+                    style={styles.statLabel}
+                  >
+                    Next 7 Days
+                  </AppText>
+
+                  <AppText
+                    color={tokens.primary}
+                    style={styles.statValue}
+                  >
+                    {next7DayShifts.length}{" "}
+                    {next7DayShifts.length === 1 ? "Shift" : "Shifts"}
+                  </AppText>
+                </View>
+
+                <View
+                  style={[
+                    styles.statCard,
+                    {
+                      backgroundColor: tokens.glassBackgroundStrong,
+                      borderColor: tokens.glassBorder,
+                    },
+                  ]}
+                >
+                  <AppText
+                    variant="captionBold"
+                    color={tokens.textSecondary}
+                    style={styles.statLabel}
+                  >
+                    Est. Payout
+                  </AppText>
+
+                  <AppText color={tokens.textPrimary} style={styles.statValue}>
+                    ${estimatedPayout.toFixed(2)}
+                  </AppText>
+                </View>
+              </View>
+            </View>
           )}
         </View>
 
@@ -265,21 +358,17 @@ export default function ShiftsTabScreen() {
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
         >
-          {sortedShifts.length === 0 ? (
+          {upcomingShifts.length === 0 ? (
             <View
               style={[
                 styles.empty,
-                {
-                  backgroundColor: tokens.surface_container_low,
-                },
+                { backgroundColor: tokens.surface_container_low },
               ]}
             >
               <View
                 style={[
                   styles.emptyIcon,
-                  {
-                    backgroundColor: `${tokens.primary}18`,
-                  },
+                  { backgroundColor: `${tokens.primary}18` },
                 ]}
               >
                 <IconSymbol
@@ -290,7 +379,7 @@ export default function ShiftsTabScreen() {
               </View>
 
               <AppText variant="subheading" color={tokens.textPrimary} center>
-                No shifts added yet
+                No upcoming shifts
               </AppText>
 
               <AppText
@@ -303,157 +392,279 @@ export default function ShiftsTabScreen() {
               </AppText>
 
               <View style={styles.emptyActions}>
-                <AppButton
-                  label="Add Shift"
-                  variant="primary"
-                  size="md"
-                  fullWidth
+                <Pressable
                   onPress={() => router.push("/add-shift")}
-                  leftIcon={
-                    <IconSymbol
-                      name="plus.circle.fill"
-                      size={18}
-                      color="#fff"
-                    />
-                  }
-                />
+                  style={[styles.emptyBtn, { backgroundColor: tokens.primary }]}
+                >
+                  <IconSymbol
+                    name="plus.circle.fill"
+                    size={18}
+                    color={tokens.textOnPrimary}
+                  />
+                  <AppText variant="bodyBold" color={tokens.textOnPrimary}>
+                    Add Shift
+                  </AppText>
+                </Pressable>
 
-                <AppButton
-                  label="Upload Schedule"
-                  variant="outline"
-                  size="md"
-                  fullWidth
+                <Pressable
                   onPress={() => router.push("/upload-shift")}
-                  leftIcon={
-                    <IconSymbol
-                      name="camera.fill"
-                      size={18}
-                      color={tokens.primary}
-                    />
-                  }
-                />
+                  style={[
+                    styles.emptyBtn,
+                    styles.emptyBtnOutline,
+                    { borderColor: tokens.border },
+                  ]}
+                >
+                  <IconSymbol
+                    name="camera.fill"
+                    size={18}
+                    color={tokens.primary}
+                  />
+                  <AppText variant="bodyBold" color={tokens.primary}>
+                    Upload Schedule
+                  </AppText>
+                </Pressable>
               </View>
             </View>
           ) : (
-            sortedShifts.map((shift) => {
-              const workplace = workplaces.find(
-                (item) => item.id === shift.workplaceId,
-              );
+            dayGroups.map((group) => (
+              <View key={group.key} style={styles.dateGroup}>
+                <View style={styles.dateGroupHeader}>
+                  <AppText
+                    variant="captionBold"
+                    color={tokens.textSecondary}
+                    style={styles.dateGroupLabel}
+                  >
+                    {groupLabel(group.date, now)}
+                  </AppText>
 
-              const workplaceLabel = getShiftWorkplaceLabel(shift, workplaces);
+                  <View
+                    style={[
+                      styles.dateGroupLine,
+                      { backgroundColor: tokens.border },
+                    ]}
+                  />
+                </View>
 
-              const selected = selectedIds.has(shift.id);
+                {group.shifts.map((shift) => {
+                  const workplace = workplaces.find(
+                    (item) => item.id === shift.workplaceId,
+                  );
 
-              const markerColor =
-                shift.associationType === "temporary"
-                  ? tokens.tertiary
-                  : shift.associationType === "unassigned"
-                    ? tokens.outline
-                    : workplace?.color || tokens.primary;
+                  const workplaceLabel = getShiftWorkplaceLabel(
+                    shift,
+                    workplaces,
+                  );
 
-              return (
-                <Pressable
-                  key={shift.id}
-                  onPress={() => handleShiftPress(shift)}
-                  onLongPress={() => handleShiftLongPress(shift.id)}
-                  delayLongPress={350}
-                  style={({ pressed }) => [
-                    styles.card,
-                    {
-                      backgroundColor: selected
-                        ? `${tokens.primary}18`
-                        : pressed
-                          ? tokens.surface_container
-                          : tokens.surface_container_low,
+                  const selected = selectedIds.has(shift.id);
 
-                      borderColor: selected ? tokens.primary : "transparent",
-                    },
-                  ]}
-                >
-                  <View style={styles.cardRow}>
-                    {/* Checkbox appears while selecting */}
-                    {selectionMode && (
+                  const markerColor =
+                    shift.associationType === "temporary"
+                      ? tokens.conflict
+                      : shift.associationType === "unassigned"
+                      ? tokens.textTertiary
+                      : workplace?.color || tokens.primary;
+
+                  const status = statusMeta(shift.status, tokens);
+                  const source = sourceMeta(shift.source, tokens);
+
+                  return (
+                    <Pressable
+                      key={shift.id}
+                      onPress={() => handleShiftPress(shift)}
+                      onLongPress={() => handleShiftLongPress(shift.id)}
+                      delayLongPress={350}
+                      style={[
+                        styles.card,
+                        {
+                          backgroundColor: selected
+                            ? `${tokens.primary}18`
+                            : tokens.glassBackground,
+                          borderColor: selected
+                            ? tokens.primary
+                            : tokens.glassBorder,
+                        },
+                      ]}
+                    >
                       <View
                         style={[
-                          styles.checkbox,
-                          {
-                            borderColor: selected
-                              ? tokens.primary
-                              : tokens.outline_variant,
-
-                            backgroundColor: selected
-                              ? tokens.primary
-                              : "transparent",
-                          },
+                          styles.cardAccent,
+                          { backgroundColor: markerColor },
                         ]}
-                      >
-                        {selected && (
-                          <IconSymbol
-                            name="checkmark"
-                            size={14}
-                            color={tokens.surface_darkest}
-                          />
-                        )}
-                      </View>
-                    )}
+                      />
 
-                    <View style={styles.shiftContent}>
-                      <View style={styles.rowTop}>
-                        <View style={styles.titleArea}>
+                      <View style={styles.cardRowTop}>
+                        <View style={styles.cardTitleBlock}>
                           <AppText
-                            variant="bodyBold"
                             color={tokens.textPrimary}
                             numberOfLines={1}
+                            style={styles.cardTitle}
                           >
                             {shift.title}
                           </AppText>
 
-                          <View
-                            style={[
-                              styles.dot,
-                              {
-                                backgroundColor: markerColor,
-                              },
-                            ]}
-                          />
+                          <View style={styles.locationRow}>
+                            <IconSymbol
+                              name="location.fill"
+                              size={13}
+                              color={tokens.textSecondary}
+                            />
+
+                            <AppText
+                              variant="caption"
+                              color={tokens.textSecondary}
+                              numberOfLines={1}
+                              style={styles.flexShrink}
+                            >
+                              {workplaceLabel}
+                            </AppText>
+                          </View>
                         </View>
 
-                        {!selectionMode && (
-                          <IconSymbol
-                            name="chevron.right"
-                            size={16}
-                            color={tokens.textSecondary}
+                        <View style={styles.pillColumn}>
+                          <View
+                            style={[styles.pill, { backgroundColor: status.bg }]}
+                          >
+                            <AppText
+                              color={status.fg}
+                              style={styles.pillText}
+                            >
+                              {status.label}
+                            </AppText>
+                          </View>
+
+                          <View
+                            style={[
+                              styles.pill,
+                              styles.pillRow,
+                              { backgroundColor: source.bg },
+                            ]}
+                          >
+                            <IconSymbol
+                              name={source.icon}
+                              size={11}
+                              color={source.fg}
+                            />
+                            <AppText
+                              color={source.fg}
+                              style={styles.pillText}
+                            >
+                              {source.label}
+                            </AppText>
+                          </View>
+                        </View>
+                      </View>
+
+                      <View style={styles.cardRowBottom}>
+                        <View style={styles.timePair}>
+                          <View style={styles.timeBlock}>
+                            <AppText
+                              variant="caption"
+                              color={tokens.textSecondary}
+                            >
+                              Start
+                            </AppText>
+
+                            <AppText
+                              color={tokens.textPrimary}
+                              style={styles.timeValue}
+                            >
+                              {fmtTime(shift.startDateTime)}
+                            </AppText>
+                          </View>
+
+                          <View
+                            style={[
+                              styles.timeDivider,
+                              { backgroundColor: tokens.divider },
+                            ]}
                           />
+
+                          <View style={styles.timeBlock}>
+                            <AppText
+                              variant="caption"
+                              color={tokens.textSecondary}
+                            >
+                              End
+                            </AppText>
+
+                            <AppText
+                              color={tokens.textPrimary}
+                              style={styles.timeValue}
+                            >
+                              {fmtTime(shift.endDateTime)}
+                            </AppText>
+                          </View>
+                        </View>
+
+                        {selectionMode ? (
+                          <View
+                            style={[
+                              styles.checkbox,
+                              {
+                                borderColor: selected
+                                  ? tokens.primary
+                                  : tokens.border,
+                                backgroundColor: selected
+                                  ? tokens.primary
+                                  : "transparent",
+                              },
+                            ]}
+                          >
+                            {selected && (
+                              <IconSymbol
+                                name="checkmark.circle.fill"
+                                size={14}
+                                color={tokens.textOnPrimary}
+                              />
+                            )}
+                          </View>
+                        ) : (
+                          <View
+                            style={[
+                              styles.chevronButton,
+                              { backgroundColor: `${tokens.primary}12` },
+                            ]}
+                          >
+                            <IconSymbol
+                              name="chevron.right"
+                              size={16}
+                              color={tokens.primary}
+                            />
+                          </View>
                         )}
                       </View>
-
-                      <AppText variant="caption" color={tokens.textSecondary}>
-                        {workplaceLabel}
-                      </AppText>
-
-                      <View style={styles.timeRow}>
-                        <IconSymbol
-                          name="calendar"
-                          size={14}
-                          color={tokens.primary}
-                        />
-
-                        <AppText variant="captionBold" color={tokens.primary}>
-                          {fmtDateTime(shift.startDateTime)}
-                        </AppText>
-                      </View>
-
-                      <AppText variant="caption" color={tokens.textSecondary}>
-                        {fmtTime(shift.startDateTime)} –{" "}
-                        {fmtTime(shift.endDateTime)}
-                      </AppText>
-                    </View>
-                  </View>
-                </Pressable>
-              );
-            })
+                    </Pressable>
+                  );
+                })}
+              </View>
+            ))
           )}
         </ScrollView>
+
+        {!selectionMode && (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Add shift"
+            onPress={() => router.push("/add-shift")}
+            style={({ pressed }) => [
+              styles.fab,
+              {
+                shadowColor: tokens.primary,
+                opacity: pressed ? 0.85 : 1,
+                transform: [{ scale: pressed ? 0.95 : 1 }],
+              },
+            ]}
+          >
+            <LinearGradient
+              colors={[tokens.primaryGradientStart, tokens.primaryGradientEnd]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.fabGradient}
+            >
+              <IconSymbol name="plus" size={26} color={tokens.textOnPrimary} />
+            </LinearGradient>
+          </Pressable>
+        )}
       </View>
     </AppScreen>
   );
@@ -467,17 +678,56 @@ const styles = StyleSheet.create({
   },
 
   header: {
-    minHeight: 58,
+    minHeight: 44,
+    marginBottom: 20,
+  },
+
+  editorial: {
+    gap: 2,
+  },
+
+  eyebrow: {
+    textTransform: "uppercase",
+    letterSpacing: 1,
+    marginBottom: 2,
+  },
+
+  hint: {
+    marginTop: 2,
+  },
+
+  statsRow: {
     flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 14,
     gap: 12,
+    marginTop: 16,
+  },
+
+  statCard: {
+    flex: 1,
+    borderRadius: 18,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    gap: 4,
+  },
+
+  statLabel: {
+    textTransform: "uppercase",
+    letterSpacing: -0.2,
+  },
+
+  statValue: {
+    fontFamily: resolveFontFamily("Inter", 700),
+    fontSize: 22,
+    fontWeight: "700",
   },
 
   selectionHeaderText: {
     flex: 1,
     gap: 2,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
 
   headerIconButton: {
@@ -495,17 +745,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
 
-  addHeaderButton: {
-    minHeight: 42,
-    borderRadius: 14,
-    paddingHorizontal: 13,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 7,
-  },
-
   content: {
-    gap: 10,
+    gap: 22,
     paddingBottom: 140,
   },
 
@@ -539,57 +780,174 @@ const styles = StyleSheet.create({
     marginTop: 22,
   },
 
-  card: {
-    borderRadius: 18,
-    borderWidth: 1,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-  },
-
-  cardRow: {
+  emptyBtn: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    minHeight: 50,
+    borderRadius: 16,
+  },
+
+  emptyBtnOutline: {
+    backgroundColor: "transparent",
+    borderWidth: 1,
+  },
+
+  dateGroup: {
     gap: 12,
   },
 
+  dateGroupHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingHorizontal: 2,
+  },
+
+  dateGroupLabel: {
+    textTransform: "uppercase",
+    letterSpacing: 1,
+  },
+
+  dateGroupLine: {
+    flex: 1,
+    height: StyleSheet.hairlineWidth,
+    opacity: 0.5,
+  },
+
+  card: {
+    borderRadius: 24,
+    borderWidth: 1,
+    overflow: "hidden",
+    padding: 18,
+    paddingLeft: 22,
+    gap: 16,
+  },
+
+  cardAccent: {
+    position: "absolute",
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 5,
+  },
+
+  cardRowTop: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+
+  cardTitleBlock: {
+    flex: 1,
+    minWidth: 0,
+    gap: 4,
+  },
+
+  cardTitle: {
+    fontFamily: resolveFontFamily("Manrope", 700),
+    fontSize: 17,
+    fontWeight: "700",
+  },
+
+  locationRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+  },
+
+  flexShrink: {
+    flexShrink: 1,
+  },
+
+  pillColumn: {
+    alignItems: "flex-end",
+    gap: 6,
+  },
+
+  pill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+
+  pillRow: {
+    flexDirection: "row",
+  },
+
+  pillText: {
+    fontFamily: resolveFontFamily("Inter", 700),
+    fontSize: 9,
+    fontWeight: "700",
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
+  },
+
+  cardRowBottom: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+
+  timePair: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+  },
+
+  timeBlock: {
+    gap: 2,
+  },
+
+  timeValue: {
+    fontFamily: resolveFontFamily("Inter", 700),
+    fontSize: 15,
+    fontWeight: "700",
+  },
+
+  timeDivider: {
+    width: StyleSheet.hairlineWidth,
+    height: 30,
+  },
+
   checkbox: {
-    width: 24,
-    height: 24,
-    borderRadius: 7,
+    width: 26,
+    height: 26,
+    borderRadius: 8,
     borderWidth: 2,
     alignItems: "center",
     justifyContent: "center",
   },
 
-  shiftContent: {
-    flex: 1,
-    gap: 5,
-  },
-
-  rowTop: {
-    flexDirection: "row",
+  chevronButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     alignItems: "center",
-    justifyContent: "space-between",
-    gap: 10,
+    justifyContent: "center",
   },
 
-  titleArea: {
-    flex: 1,
-    flexDirection: "row",
+  fab: {
+    position: "absolute",
+    right: 4,
+    bottom: 96,
+    borderRadius: 28,
+    overflow: "hidden",
+    shadowOpacity: 0.3,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 12 },
+    elevation: 8,
+  },
+
+  fabGradient: {
+    width: 56,
+    height: 56,
     alignItems: "center",
-    gap: 8,
-  },
-
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-
-  timeRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    marginTop: 3,
+    justifyContent: "center",
   },
 });
